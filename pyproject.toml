@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynamics_common"
+version = "0.1.0"
+description = "Some dynamics stuff"
+classifiers = [
+    "Intended Audience :: Myself",
+    "Natural Language :: English",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = ["numpy", "scipy", "numba", "matplotlib", "plotly"]
+requires-python = ">=3.10"
+
+[tool.setuptools]

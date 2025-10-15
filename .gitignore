@@ -1,0 +1,4 @@
+tests
+*pycache*
+*.egg-info
+dist*
