@@ -629,36 +629,38 @@ def plotly_curve(x, y, z, name="", opacity=1.0, **kwargs):
     )
 
 
-def make_label(data: List | NDArray, param_names: List):
-    terms = [f"{name}: {val:.5f}" for name, val in zip(param_names[1:], data[1:])]
-    return f"Index: {data[0]}<br>" + "<br>".join(terms)
+def make_label(data: List | NDArray, param_names: List[str]):
+    terms = []
+    for val, param in zip(data, param_names):
+        valtxt = f"{val}" if param.lower() == "index" else f"{val:.5f}"
+        terms.append(f"{param}: {valtxt}")
+    return "<br>".join(terms)
 
 
 def plotly_family(
-    Xs: List,
     xyzs: List,
     name: str,
+    data: List | NDArray,
     param_names: list,
-    X2xtf_func: Callable,
     colormap: str = "rainbow",
     mu: float = muEM,
     renderer: str | None = "browser",
     html_save: str | None = None,
 ):
-    Xs = np.float32(Xs)
-    xyzs = [np.float32(xyz) for xyz in xyzs]
+    data = np.array(data)
+    data = data.astype(np.float32)
 
+    assert len(xyzs) == len(data)
+    assert len(data[0]) == len(param_names)
+
+    xyzs = [np.float32(xyz) for xyz in xyzs]
     if html_save is not None and html_save.endswith(".html"):
         html_save = html_save.rstrip(".html")
 
     if renderer is not None:
         pio.renderers.default = renderer
-    param_names = ["Index", *param_names[:-1], "Jacobi Constant", "Period"]
-    data = np.array(
-        [[i, *X[:-1], *get_JC_tf(X, X2xtf_func)] for i, X in enumerate(Xs)]
-    ).T
 
-    n = len(Xs)
+    n = len(xyzs)
 
     curves = []
     xs, ys, zs = np.hstack(xyzs)
@@ -672,22 +674,24 @@ def plotly_family(
     projX = ctrX - rng / 2
     projY = ctrY - rng / 2
     projZ = ctrZ - rng / 2
+    projs = []
+    curves3d = []
     for i, xyzs in enumerate(xyzs):
         x, y, z = xyzs
         c = px.colors.sample_colorscale(colormap, i / n)[0]
-        lbl = make_label(data[:, i], param_names)
-        curves.append(plotly_curve(x, y, z, lbl, color=c, width=5))
-        curves.append(
+        lbl = make_label(data[i], param_names)
+        curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5))
+        projs.append(
             plotly_curve(x * 0 + projX, y, z, lbl, color=c, width=2, opacity=0.75)
         )
-        curves.append(
+        projs.append(
             plotly_curve(x, 0 * y + projY, z, lbl, color=c, width=2, opacity=0.75)
         )
-        curves.append(
+        projs.append(
             plotly_curve(x, y, 0 * z + projZ, lbl, color=c, width=2, opacity=0.75)
         )
 
-    fig = go.Figure(data=curves)
+    fig = go.Figure(data=[*curves3d, *projs])
 
     Lpoints = get_Lpts()
     fig.add_trace(
@@ -749,9 +753,34 @@ def plotly_family(
         aspectmode="cube",
     )
 
+    argshide = {"visible": [*[True] * n, *[False] * (3 * n), True, True]}
+    argsshow = {"visible": [*[True] * (4 * n + 2)]}
+    fig.update_layout(
+        updatemenus=[
+            dict(
+                type="buttons",
+                direction="right",
+                x=0.2,
+                y=1,
+                xanchor="left",
+                yanchor="bottom",
+                showactive=False,
+                buttons=[
+                    dict(
+                        label="Show<br>Projections", method="restyle", args=[argsshow]
+                    ),
+                    dict(
+                        label="Hide<br>Projections", method="restyle", args=[argshide]
+                    ),
+                ],
+            ),
+        ]
+    )
+
+    datatr = data.T
     trace = go.Scatter(
-        x=data[0],
-        y=data[0],
+        x=list(range(n)),
+        y=datatr[0],
         mode="markers",
         name="Parameter Sweep",
         marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
@@ -765,6 +794,7 @@ def plotly_family(
             yanchor="bottom",
             y=0.95,
         ),
+        xaxis=dict(title="Index Along Family"),
         width=700,
         height=400,
         template="plotly_dark",
@@ -783,7 +813,7 @@ def plotly_family(
                         dict(
                             label=param,
                             method="update",
-                            args=[{"y": [data[i]]}, {"yaxis.title.text": param}],
+                            args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
                         )
                         for i, param in enumerate(param_names)
                     ]
@@ -795,20 +825,6 @@ def plotly_family(
                 y=1,
                 yanchor="bottom",
             ),
-        ]
-    )
-
-    # Add annotation
-    fig2.update_layout(
-        annotations=[
-            dict(
-                text="Trace type:",
-                showarrow=False,
-                x=0,
-                y=1.085,
-                yref="paper",
-                align="left",
-            )
         ]
     )
 
