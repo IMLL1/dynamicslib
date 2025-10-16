@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dynamics_common"
+name = "dynamicslib"
 version = "0.1.0"
 description = "Some dynamics stuff"
 classifiers = [
