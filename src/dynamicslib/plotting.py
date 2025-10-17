@@ -135,6 +135,7 @@ def plotly_family(
     mu: float = muEM,
     renderer: str | None = "browser",
     html_save: str | None = None,
+    alpha: float = 1,
 ):
     data = np.array(data)
     data = data.astype(np.float32)
@@ -169,15 +170,22 @@ def plotly_family(
         x, y, z = xyzs
         c = px.colors.sample_colorscale(colormap, i / n)[0]
         lbl = make_label(data[i], param_names)
-        curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5))
+        curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5,opacity=alpha))
         projs.append(
-            plotly_curve(x * 0 + projX, y, z, lbl, color=c, width=2, opacity=0.75)
+            plotly_curve(
+                x * 0 + projX, y, z, lbl, color=c, width=2, opacity=0.75 * alpha
+                
+            )
         )
         projs.append(
-            plotly_curve(x, 0 * y + projY, z, lbl, color=c, width=2, opacity=0.75)
+            plotly_curve(
+                x, 0 * y + projY, z, lbl, color=c, width=2, opacity=0.75 * alpha
+            )
         )
         projs.append(
-            plotly_curve(x, y, 0 * z + projZ, lbl, color=c, width=2, opacity=0.75)
+            plotly_curve(
+                x, y, 0 * z + projZ, lbl, color=c, width=2, opacity=0.75 * alpha
+            )
         )
 
     fig = go.Figure(data=[*curves3d, *projs])

@@ -2,7 +2,7 @@ from dynamicslib.common import *
 
 
 # %% continuation
-def get_f_df(
+def f_df_CR3_single(
     X: NDArray,
     X2xtf: Callable,
     dF_func: Callable,

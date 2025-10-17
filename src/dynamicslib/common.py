@@ -9,6 +9,7 @@ from numba import njit
 
 from dynamicslib.consts import muEM
 
+
 # %% generic CR3BP stuff
 @njit(cache=True)
 def get_L1(mu=muEM, tol=1e-14):
@@ -52,7 +53,7 @@ def get_L3(mu=muEM, tol=1e-14):
 def get_Lpts(mu: float = muEM):
     lagrange_points = np.array(
         [
-            [get_L1(mu), get_L2(mu), get_L3(mu), mu - 1 / 2, mu - 1 / 2],
+            [get_L1(mu), get_L2(mu), get_L3(mu), 1 / 2 - mu, 1 / 2 - mu],
             [0, 0, 0, -np.sqrt(3) / 2, np.sqrt(3) / 2],
         ],
     )
@@ -66,8 +67,6 @@ def U_hess(pos: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
     r2mag = np.sqrt(y**2 + z**2 + (mu + x - 1) ** 2)
     r1 = pos - np.array([-mu, 0, 0])
     r2 = pos - np.array([1 - mu, 0, 0])
-    r1mag = np.sqrt(np.sum(r1**2))
-    r2mag = np.sqrt(np.sum(r2**2))
     H = (
         np.diag(np.array([1, 1, 0]))
         + 3 * (1 - mu) / r1mag**5 * np.outer(r1, r1)
@@ -133,6 +132,21 @@ def coupled_stm_eom(
 
 
 @njit(cache=True)
+def coupled_stm_eom_jac(
+    _, state: NDArray[np.float64], mu: float = muEM
+) -> NDArray[np.float64]:
+    # fmt: off
+    x, y, z, vx, vy, vz, Phi11, Phi12, Phi13, Phi14, Phi15, Phi16, Phi21, Phi22, Phi23, Phi24, Phi25, Phi26, Phi31, Phi32, Phi33, Phi34, Phi35, Phi36, Phi41, Phi42, Phi43, Phi44, Phi45, Phi46, Phi51, Phi52, Phi53, Phi54, Phi55, Phi56, Phi61, Phi62, Phi63, Phi64, Phi65, Phi66 = state
+    x1 = x+mu
+    x2 = x+mu-1
+    r1 = np.sqrt(x1**2+y**2+z**2)
+    r2 = np.sqrt(x2**2+y**2+z**2)
+    out = np.array([x, y, z, -mu*x2/r2**3 + 2*vy + x + x1*(mu - 1)/r1**3, -mu*y/r2**3 - 2*vx + y + y*(mu - 1)/r1**3, -mu*z/r2**3 + z*(mu - 1)/r1**3, Phi41, Phi42, Phi43, Phi44, Phi45, Phi46, Phi51, Phi52, Phi53, Phi54, Phi55, Phi56, Phi61, Phi62, Phi63, Phi64, Phi65, Phi66, Phi11*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi21*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi31*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi51, Phi12*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi22*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi32*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi52, Phi13*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi23*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi33*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi53, Phi14*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi24*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi34*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi54, Phi15*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi25*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi35*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi55, Phi16*(-mu/r2**3 + 3*mu*x2**2/r2**5 + 1 - (1 - mu)/r1**3 + x1**2*(3 - 3*mu)/r1**5) + Phi26*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi36*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + 2*Phi56, Phi11*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi21*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi31*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi41, Phi12*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi22*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi32*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi42, Phi13*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi23*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi33*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi43, Phi14*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi24*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi34*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi44, Phi15*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi25*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi35*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi45, Phi16*(3*mu*x2*y/r2**5 + x1*y*(3 - 3*mu)/r1**5) + Phi26*(-mu/r2**3 + 3*mu*y**2/r2**5 + 1 - (1 - mu)/r1**3 + y**2*(3 - 3*mu)/r1**5) + Phi36*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) - 2*Phi46, Phi11*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi21*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi31*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5), Phi12*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi22*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi32*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5), Phi13*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi23*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi33*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5), Phi14*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi24*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi34*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5), Phi15*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi25*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi35*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5), Phi16*(3*mu*x2*z/r2**5 + x1*z*(3 - 3*mu)/r1**5) + Phi26*(3*mu*y*z/r2**5 + y*z*(3 - 3*mu)/r1**5) + Phi36*(-mu/r2**3 + 3*mu*z**2/r2**5 - (1 - mu)/r1**3 + z**2*(3 - 3*mu)/r1**5)])
+    # fmt: on
+    return out
+
+
+@njit(cache=True)
 def jacobi_constant(state: NDArray[np.float64], mu: float = muEM) -> float:
     x, y, z = state[:3]
     r1mag = np.sqrt((x + mu) ** 2 + y**2 + z**2)
@@ -174,8 +188,8 @@ def get_stab(eigval: float, eps: float = 1e-5) -> int:
             return 3
     else:
         return 4
-    
-    
+
+
 # shortcut to get x,y,z from X
 def prop_ic(X: NDArray, X2xtf_func: Callable, mu: float = muEM, int_tol=1e-12):
     x0, tf = X2xtf_func(X)
