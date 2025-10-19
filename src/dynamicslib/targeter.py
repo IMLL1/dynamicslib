@@ -91,6 +91,8 @@ def dc_npc(
     X_guess: NDArray,
     f_df_func: Callable,
     tol: float = 1e-8,
+    fudge: float = 1,
+    debug: bool = False,
 ) -> Tuple[NDArray, NDArray, NDArray]:
     """Natural parameter continuation differetial corrector
 
@@ -115,7 +117,69 @@ def dc_npc(
     while np.linalg.norm(f) > tol and np.linalg.norm(dX) > tol:
         f, dF, stm_full = f_df_func(X)
         dX = -np.linalg.inv(dF) @ f
-        X += dX
+        X += fudge * dX
         niters += 1
+        if debug:
+            print(dX)
 
     return X, dF, stm_full
+
+
+"""
+example funcs for arclength continuation:
+```
+def xtf2X(x0, tf):
+    return np.array([x0[0], x0[2], x0[-2], tf / 2])
+
+
+def X2xtf(X):
+    return np.array([X[0], 0, X[1], 0, X[2], 0]), X[-1] * 2
+
+
+def stmeom2DF(eomf, stm):
+    dF = np.array(
+        [
+            [stm[1, 0], stm[1, 2], stm[1, -2], eomf[1]],
+            [stm[-3, 0], stm[-3, 2], stm[-3, -2], eomf[-3]],
+            [stm[-1, 0], stm[-1, 2], stm[-1, -2], eomf[-1]],
+        ]
+    )
+    return dF
+
+
+def f_func(x0, tf, xf):
+    return np.array([xf[1], xf[-3], xf[-1]])
+
+
+func = lambda X: get_f_df(X, X2xtf, stmeom2DF, f_func, False, muEM, 1e-10)
+```
+
+Example for natural parameter:
+
+```
+# X: [x, tf]
+# f: [y, dx]
+# param: vy
+def xtf2X(x0, tf):
+    return np.array([x0[0], tf / 2])
+
+
+def X2xtf(X, param):
+    return np.array([X[0], 0, 0, 0, param, 0]), X[-1] * 2
+
+
+def stmeom2DF(eomf, stm):
+    dF = np.array([[stm[1, 0], eomf[1]], [stm[-3, 0], eomf[-3]]])
+    return dF
+
+
+def f_func(x0, tf, xf):
+    return np.array([xf[1], xf[-3]])
+
+
+func = lambda param: lambda X: f_df_CR3_single(
+    X, lambda X: X2xtf(X, param), stmeom2DF, f_func, False, muEM, 1e-10
+)
+```
+
+"""
