@@ -170,11 +170,10 @@ def plotly_family(
         x, y, z = xyzs
         c = px.colors.sample_colorscale(colormap, i / n)[0]
         lbl = make_label(data[i], param_names)
-        curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5,opacity=alpha))
+        curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5, opacity=alpha))
         projs.append(
             plotly_curve(
                 x * 0 + projX, y, z, lbl, color=c, width=2, opacity=0.75 * alpha
-                
             )
         )
         projs.append(
@@ -190,7 +189,7 @@ def plotly_family(
 
     fig = go.Figure(data=[*curves3d, *projs])
 
-    Lpoints = get_Lpts()
+    Lpoints = get_Lpts(mu=mu)
     fig.add_trace(
         go.Scatter3d(
             x=Lpoints[0],
@@ -208,7 +207,7 @@ def plotly_family(
             y=[0, 0],
             z=[0, 0],
             mode="markers",
-            text=["earth", "moon"],
+            text=["P1", "P2"],
             hoverinfo="x+y+text",
             marker=dict(color="cyan"),
         )
