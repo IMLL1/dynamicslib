@@ -137,8 +137,9 @@ def dop853(
     x0: NDArray,
     atol: float = 1e-10,
     rtol: float = 1e-10,
-    init_step: float = 1e-6,
-):
+    t_eval: List | Tuple | NDArray | None = None,
+    init_step: float = 1.0,
+) -> Tuple[NDArray, NDArray]:
     n = len(x0)
 
     K = np.empty((coefs.n_stages + 1, n), dtype=np.float64)
@@ -156,18 +157,8 @@ def dop853(
             h = tf - t
 
         # STEP
-
-        # K[0] = f
-        # for s, (a, c) in enumerate(zip(A[1:], C[1:]), start=1):
-        #     dy = np.dot(K[:s].T, a[:s]) * h
-        #     K[s] = fun(t + c * h, y + dy)
-
-        # y_new = y + h * np.dot(K[:-1].T, B)
-        # f_new = fun(t + h, y_new)
-
-        # K[-1] = f_new
         K[0] = func(t, x)
-        for sm1 in range(len(coefs.A) - 1):
+        for sm1 in range(coefs.N_STAGES - 1):
             s = sm1 + 1
             a = coefs.A[s]
             c = coefs.C[s]
@@ -186,15 +177,11 @@ def dop853(
         err3 = np.dot(K.T, coefs.E3) / scale
         err5_norm_2 = np.linalg.norm(err5) ** 2
         err3_norm_2 = np.linalg.norm(err3) ** 2
-        if err5_norm_2 == 0 and err3_norm_2 == 0:
-            error = 0.0
         denom = err5_norm_2 + 0.01 * err3_norm_2
         error = np.abs(h) * err5_norm_2 / np.sqrt(denom * len(scale))
+        # END ERROR ESTIMATOR
 
-        # print(round(t, 4), h, log10(error))
-
-        # no div0
-        hscale = 0.9 * error**-0.1 if error != 0 else 2
+        hscale = 0.9 * error ** (-1 / 8) if error != 0 else 2
 
         if hscale > 2:
             hscale = 2
@@ -210,4 +197,9 @@ def dop853(
 
         h *= hscale
 
-    return ts, xs
+    # interpolate as needed
+    # if t_eval is not None:
+    #     t_eval = np.array(t_eval)
+    #     xs =
+
+    return ts, xs.T

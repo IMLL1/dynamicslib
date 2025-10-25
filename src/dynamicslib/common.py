@@ -8,6 +8,7 @@ from tqdm import tqdm
 from numba import njit
 
 from dynamicslib.consts import muEM
+from dynamicslib.integrator import dop853
 
 
 # %% generic CR3BP stuff
@@ -194,17 +195,20 @@ def get_stab(eigval: float, eps: float = 1e-5) -> int:
 def prop_ic(X: NDArray, X2xtf_func: Callable, mu: float = muEM, int_tol=1e-12):
     x0, tf = X2xtf_func(X)
 
-    odesol = solve_ivp(
-        eom,
-        (0, tf),
-        x0,
-        rtol=int_tol,
-        atol=int_tol,
-        method="LSODA",
-        jac=eom_jac,
-        args=(mu,),
-    )
-    x, y, z = odesol.y[:3]
+    # odesol = solve_ivp(
+    #     eom,
+    #     (0, tf),
+    #     x0,
+    #     rtol=int_tol,
+    #     atol=int_tol,
+    #     method="LSODA",
+    #     jac=eom_jac,
+    #     args=(mu,),
+    # )
+    # x, y, z = odesol.y[:3]
+
+    _, odesol = dop853(eom, (0, tf), x0, rtol=int_tol, atol=int_tol)
+    x, y, z = odesol[:3]
     return x, y, z
 
 

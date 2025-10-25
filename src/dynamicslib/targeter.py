@@ -1,4 +1,5 @@
 from dynamicslib.common import *
+from dynamicslib.integrator import *
 
 
 # %% continuation
@@ -13,17 +14,25 @@ def f_df_CR3_single(
 ) -> Tuple[NDArray, NDArray, NDArray]:
     x0, tf = X2xtf(X)
     xstmIC = np.array([*x0, *np.eye(6).flatten()])
-    ode_sol = solve_ivp(
+    # ode_sol = solve_ivp(
+    #     coupled_stm_eom,
+    #     (0, tf if full_period else tf / 2),
+    #     xstmIC,
+    #     rtol=int_tol,
+    #     atol=int_tol,
+    #     args=(mu,),
+    #     method="DOP853",
+    # )
+    # xf, stm = ode_sol.y[:6, -1], ode_sol.y[6:, -1].reshape(6, 6)
+    ts, ys = dop853(
         coupled_stm_eom,
-        (0, tf if full_period else tf / 2),
+        (0.0, tf if full_period else tf / 2),
         xstmIC,
-        rtol=int_tol,
-        atol=int_tol,
-        args=(mu,),
-        method="DOP853",
+        int_tol,
+        int_tol,
+        init_step=0.05,
     )
-
-    xf, stm = ode_sol.y[:6, -1], ode_sol.y[6:, -1].reshape(6, 6)
+    xf, stm = ys[:6, -1], ys[6:, -1].reshape(6, 6)
     eomf = eom(0, xf, mu)
 
     dF = dF_func(eomf, stm)
