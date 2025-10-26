@@ -140,6 +140,20 @@ def dop853(
     init_step: float = 1.0,
     args: Tuple = (),
 ) -> Tuple[NDArray, NDArray]:
+    """High order adaptive RK method
+
+    Args:
+        func (Callable): dynamics function
+        t_span (Tuple[float, float]): beginning and end times
+        x0 (NDArray): initial state
+        atol (float, optional): absolute tolerence. Defaults to 1e-10.
+        rtol (float, optional): rel tolerence. Defaults to 1e-10.
+        init_step (float, optional): initial step size. Defaults to 1.0.
+        args (Tuple, optional): additional args to func(t, x, *args). Defaults to ().
+
+    Returns:
+        Tuple[NDArray, NDArray]: ts (N, ), xs (nx, N)
+    """
     n = len(x0)
 
     K = np.empty((coefs.n_stages + 1, n), dtype=np.float64)

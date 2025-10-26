@@ -1,5 +1,7 @@
 import numpy as np
 
+# Coefficients or DOP853 integrator. Taken from scipy DOP853 implementation.
+
 N_STAGES = 12
 N_STAGES_EXTENDED = 16
 INTERPOLATOR_POWER = 7
