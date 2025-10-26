@@ -31,6 +31,7 @@ def f_df_CR3_single(
         int_tol,
         int_tol,
         init_step=0.05,
+        args=(mu,),
     )
     xf, stm = ys[:6, -1], ys[6:, -1].reshape(6, 6)
     eomf = eom(0, xf, mu)

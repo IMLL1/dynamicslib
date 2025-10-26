@@ -137,8 +137,8 @@ def dop853(
     x0: NDArray,
     atol: float = 1e-10,
     rtol: float = 1e-10,
-    t_eval: List | Tuple | NDArray | None = None,
     init_step: float = 1.0,
+    args: Tuple = (),
 ) -> Tuple[NDArray, NDArray]:
     n = len(x0)
 
@@ -163,11 +163,11 @@ def dop853(
             a = coefs.A[s]
             c = coefs.C[s]
             dy = np.dot(K[:s].T, a[:s]) * h
-            K[s] = func(t + c * h, x + dy)
+            K[s] = func(t + c * h, x + dy, *args)
 
         xnew = x + h * np.dot(K[:-1].T, coefs.B)
 
-        K[-1] = func(t + h, xnew)
+        K[-1] = func(t + h, xnew, *args)
 
         # END STEP
 

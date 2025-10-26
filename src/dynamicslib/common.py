@@ -207,7 +207,7 @@ def prop_ic(X: NDArray, X2xtf_func: Callable, mu: float = muEM, int_tol=1e-12):
     # )
     # x, y, z = odesol.y[:3]
 
-    _, odesol = dop853(eom, (0, tf), x0, rtol=int_tol, atol=int_tol)
+    _, odesol = dop853(eom, (0, tf), x0, rtol=int_tol, atol=int_tol, args=(mu,))
     x, y, z = odesol[:3]
     return x, y, z
 
