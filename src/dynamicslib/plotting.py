@@ -313,7 +313,7 @@ def plotly_family(
         plot_bgcolor="#000000",
         paper_bgcolor="#000000",
     )
-    
+
     fig2.update_yaxes(exponentformat="power")
 
     # DROPDOWNS
@@ -413,7 +413,8 @@ def plotly_family_planar(
         # aspectmode="cube",
     )
 
-    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    fig.update_yaxes(scaleanchor="x", scaleratio=1, exponentformat="power")
+    fig.update_xaxes(exponentformat="power")
 
     Lpoints = get_Lpts(mu=mu)
     fig.add_trace(

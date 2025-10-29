@@ -49,10 +49,10 @@ def Hermite_interp_interval(
 
 @njit(cache=True)
 def interp_hermite(
-    t: NDArray,
-    x: NDArray,
-    dxdt: NDArray,
-    t_eval: NDArray | None = None,
+    t: NDArray[np.floating],
+    x: NDArray[np.floating],
+    dxdt: NDArray[np.floating],
+    t_eval: NDArray[np.floating] | None = None,
     n_mult: int | None = None,
 ):
     """Hermite spline interpolation. Provide either times to evaluate at or a density multiplier
@@ -73,10 +73,11 @@ def interp_hermite(
 
     if t_eval is None:
         if n_mult is not None:
-            tlist = [
-                np.linspace(t[a], t[a + 1], n_mult, False) for a in range(len(t) - 1)
-            ]
-            t_eval = np.array(tlist).flatten()
+            t_eval = np.empty((0,), np.float64)
+            for a in range(len(t) - 1):
+                toadd = np.linspace(t[a], t[a + 1], n_mult + 1)[:-1]
+                t_eval = np.append(t_eval, toadd)
+            t_eval = np.append(t_eval, np.array([t[-1]]))
         else:
             raise ValueError("Must provide value for t_eval or n_mult")
     else:
@@ -268,7 +269,6 @@ def dop853(
         rtol (float, optional): rel tolerence. Defaults to 1e-10.
         init_step (float, optional): initial step size. Defaults to 1.0.
         t_eval (NDArray | None, optional): times to evaluate at. Will interpolate if these are specified. If None, returns only what's evaluated by the RK solver. Defaults to None
-        dense_output (bool): whether to return function evals as well. If True, returns the transpose of xs and returns fs of the same shape. Defaults to False
         args (Tuple, optional): additional args to func(t, x, *args). Defaults to ().
 
     Returns:
