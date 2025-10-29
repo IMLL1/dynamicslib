@@ -7,16 +7,130 @@ from typing import List, Tuple, Callable
 import dynamicslib.DOP853_coefs as coefs
 
 
+@njit(cache=True)
+def Hermite_interp_interval(
+    t: float | NDArray,
+    t0: float,
+    t1: float,
+    x0: float | NDArray,
+    x1: float | NDArray,
+    dxdt0: float | NDArray,
+    dxdt1: float | NDArray,
+) -> float | NDArray:
+    """Cubic Hermite spline interpolation. Source: Wikipedia
+
+    Args:
+        t (float): time to evaluate at
+        t0 (float): Beginning time of two points
+        t1 (float): End time of two points
+        x0 (float | NDArray): First state
+        x1 (float | NDArray): Second state
+        dxdt0 (float | NDArray): First tangent
+        dxdt1 (float | NDArray): Second tangent
+
+    Returns:
+        NDArray|Float: interpolated value
+    """
+    dt = t1 - t0  # time between samples
+    tau = (t - t0) / (t1 - t0)  # fraction of time interval
+    # polynomial bases
+    h00 = 2 * tau**3 - 3 * tau**2 + 1
+    h10 = tau**3 - 2 * tau**2 + tau
+    h01 = -2 * tau**3 + 3 * tau**2
+    h11 = tau**3 - tau**2
+
+    x0e = np.expand_dims(x0, axis=1)
+    x1e = np.expand_dims(x1, axis=1)
+    dxdt0e = np.expand_dims(dxdt0, axis=1)
+    dxdt1e = np.expand_dims(dxdt1, axis=1)
+
+    return (h00 * x0e + h10 * dt * dxdt0e + h01 * x1e + h11 * dt * dxdt1e).T
+
+
+@njit(cache=True)
+def interp_hermite(
+    t: NDArray,
+    x: NDArray,
+    dxdt: NDArray,
+    t_eval: NDArray | None = None,
+    n_mult: int | None = None,
+):
+    """Hermite spline interpolation. Provide either times to evaluate at or a density multiplier
+
+    Args:
+        t (NDArray): Originally evaluated times (N, )
+        x (NDArray): Originally evaluated values (N, nx)
+        dxdt (NDArray): Derivatives at evaluated times (N, nx)
+        t_eval (NDArray | None, optional): Times to evaluate at (N2, ). Defaults to None.
+        n_mult (int | None, optional): density multiplier. Defaults to None.
+
+    Returns:
+        _type_: new ts (N2, ), new xs (N2, nx)
+    """
+
+    if t[-1] < t[0]:
+        raise NotImplementedError("Ts must be sorted for now")
+
+    if t_eval is None:
+        if n_mult is not None:
+            tlist = [
+                np.linspace(t[a], t[a + 1], n_mult, False) for a in range(len(t) - 1)
+            ]
+            t_eval = np.array(tlist).flatten()
+        else:
+            raise ValueError("Must provide value for t_eval or n_mult")
+    else:
+        assert t_eval[0] >= t[0] and t_eval[-1] <= t[-1]
+
+    i0 = 0
+
+    x_eval = np.empty((0, len(x[0])), dtype=np.float64)
+    for j in range(len(t) - 1):
+        t0 = t[j]
+        t1 = t[j + 1]
+        while t_eval[i0] < t0:
+            i0 += 1
+        i1 = i0 + 1
+        while i1 < len(t_eval) and t_eval[i1 - 1] < t1:
+            i1 += 1
+
+        ts = t_eval[i0:i1]
+        x0 = x[j]
+        x1 = x[j + 1]
+        dxdt0 = dxdt[j]
+        dxdt1 = dxdt[j + 1]
+        newterms = Hermite_interp_interval(ts, t0, t1, x0, x1, dxdt0, dxdt1)
+        x_eval = np.concatenate((x_eval, newterms))
+        i0 = i1
+
+    return t_eval, x_eval
+
+
 # largely written by chatgpt. I modified.
+
+
 @njit(cache=True)
 def rkf45(
     func: Callable,
-    x0: NDArray,
     t_span: Tuple[float, float],
+    x0: NDArray,
     atol: float = 1e-10,
     rtol: float = 1e-10,
     init_step: float = 1e-6,
-):
+) -> Tuple[NDArray, NDArray]:
+    """Runge Kutta 45
+
+    Args:
+        func (Callable): _description_
+        t_span (Tuple[float, float]): _description_
+        x0 (NDArray): _description_
+        atol (float, optional): _description_. Defaults to 1e-10.
+        rtol (float, optional): _description_. Defaults to 1e-10.
+        init_step (float, optional): _description_. Defaults to 1e-6.
+
+    Returns:
+        Tuple[NDArray, NDArray]: _description_
+    """
 
     t0, tf = t_span
     t = t0
@@ -61,6 +175,7 @@ def rkf45(
     return ts, xs
 
 
+"""
 # Coefficients from the book cited by scipy docs. Do not use.
 # @njit(cache=True)
 # def rkf78(
@@ -128,6 +243,7 @@ def rkf45(
 #         h *= s
 
 #     return ts, xs
+"""
 
 
 # shamelessly stolen from scipy and adapted
@@ -139,8 +255,9 @@ def dop853(
     atol: float = 1e-10,
     rtol: float = 1e-10,
     init_step: float = 1.0,
+    t_eval: NDArray | None = None,
     args: Tuple = (),
-) -> Tuple[NDArray, NDArray]:
+) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
     """High order adaptive RK method
 
     Args:
@@ -150,6 +267,8 @@ def dop853(
         atol (float, optional): absolute tolerence. Defaults to 1e-10.
         rtol (float, optional): rel tolerence. Defaults to 1e-10.
         init_step (float, optional): initial step size. Defaults to 1.0.
+        t_eval (NDArray | None, optional): times to evaluate at. Will interpolate if these are specified. If None, returns only what's evaluated by the RK solver. Defaults to None
+        dense_output (bool): whether to return function evals as well. If True, returns the transpose of xs and returns fs of the same shape. Defaults to False
         args (Tuple, optional): additional args to func(t, x, *args). Defaults to ().
 
     Returns:
@@ -159,16 +278,18 @@ def dop853(
 
     K = np.empty((coefs.n_stages + 1, n), dtype=np.float64)
 
+    forward = t_span[1] > t_span[0]  # forward or backward integration
     t0, tf = t_span
     t = t0
     xs = expand_dims(x0, axis=0)
+    fs = expand_dims(func(t0, x0), axis=0)
     ts = array([t0], dtype=float64)
     x = x0
-    h = init_step
+    h = init_step if forward else -init_step
 
     # pp180 of RKEM
-    while t < tf:
-        if t + h > tf:
+    while (t < tf) if forward else (t > tf):
+        if (t + h > tf) if forward else (t + h < tf):
             h = tf - t
 
         # STEP
@@ -209,12 +330,16 @@ def dop853(
             x = xnew
             ts = concatenate((ts, array([t], dtype=float64)))
             xs = concatenate((xs, expand_dims(x, axis=0)))
+            fs = concatenate((fs, expand_dims(K[-1], axis=0)))
 
         h *= hscale
 
     # interpolate as needed
-    # if t_eval is not None:
-    #     t_eval = np.array(t_eval)
-    #     xs =
+    if t_eval is not None:
+        t_eval = np.array(t_eval)
+        _, xs = interp_hermite(ts, xs, fs, t_eval)
 
-    return ts, xs.T
+    # if not dense_output:
+    #     return ts, xs.T
+    # else:
+    return ts, xs.T, fs.T

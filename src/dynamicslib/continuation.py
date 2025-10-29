@@ -56,7 +56,13 @@ def arclen_cont(
         # if we flip flop, undo the flipflop
         if np.dot(tangent, tangent_prev) < 0:
             tangent *= -1
-        X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol, modified)
+        try:
+            X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol, modified)
+        except np.linalg.LinAlgError as err:
+            print(f"Linear algebra error encountered: {err}")
+            print("returning what's been calculated so far")
+            break
+            
 
         Xs.append(X)
 

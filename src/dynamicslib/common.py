@@ -8,7 +8,7 @@ from tqdm import tqdm
 from numba import njit
 
 from dynamicslib.consts import muEM
-from dynamicslib.integrator import dop853
+from dynamicslib.integrator import dop853, interp_hermite
 
 
 # %% generic CR3BP stuff
@@ -192,7 +192,13 @@ def get_stab(eigval: float, eps: float = 1e-5) -> int:
 
 
 # shortcut to get x,y,z from X
-def prop_ic(X: NDArray, X2xtf_func: Callable, mu: float = muEM, int_tol=1e-12):
+def prop_ic(
+    X: NDArray,
+    X2xtf_func: Callable,
+    mu: float = muEM,
+    int_tol=1e-12,
+    density_mult: int = 2,
+):
     x0, tf = X2xtf_func(X)
 
     # odesol = solve_ivp(
@@ -207,8 +213,9 @@ def prop_ic(X: NDArray, X2xtf_func: Callable, mu: float = muEM, int_tol=1e-12):
     # )
     # x, y, z = odesol.y[:3]
 
-    _, odesol = dop853(eom, (0, tf), x0, rtol=int_tol, atol=int_tol, args=(mu,))
-    x, y, z = odesol[:3]
+    ts, xs, fs = dop853(eom, (0, tf), x0, rtol=int_tol, atol=int_tol, args=(mu,))
+    ts, dense_sol = interp_hermite(ts, xs.T, fs.T, n_mult=density_mult)
+    x, y, z = dense_sol.T[:3]
     return x, y, z
 
 

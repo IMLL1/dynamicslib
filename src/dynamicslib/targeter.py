@@ -24,7 +24,7 @@ def f_df_CR3_single(
     #     method="DOP853",
     # )
     # xf, stm = ode_sol.y[:6, -1], ode_sol.y[6:, -1].reshape(6, 6)
-    ts, ys = dop853(
+    ts, ys, _ = dop853(
         coupled_stm_eom,
         (0.0, tf if full_period else tf / 2),
         xstmIC,
@@ -59,6 +59,7 @@ def dc_arclen(
     s: float = 1e-3,
     tol: float = 1e-8,
     modified: bool = False,
+    max_iter: int | None = None,
 ) -> Tuple[NDArray, NDArray, NDArray]:
     """Pseudoarclength continuation differential corrector. The modified algorithm has a full step size of s, rather than projected step size.
 
@@ -69,6 +70,7 @@ def dc_arclen(
         s (float, optional): step size. Defaults to 1e-3.
         tol (float, optional): tolerance for convergence. Defaults to 1e-8.
         modified (boolean, optional): whether to use modified algorithm. Defaults to false.
+        max_iter: maximum number of iterations
 
     Returns:
         Tuple[NDArray, NDArray, NDArray]: X. final dF/dx, full-rev STM
@@ -84,6 +86,8 @@ def dc_arclen(
     niters = 0
     dX = np.array([np.inf] * nX)
     while np.linalg.norm(G) > tol and np.linalg.norm(dX) > tol:
+        if max_iter is not None and niters > max_iter:
+            raise RuntimeError("Exceeded maximum iterations")
         f, dF, stm_full = f_df_func(X)
         delta = X - X_prev
         lastG = np.dot(delta, delta) - s**2 if modified else np.dot(delta, tangent) - s
@@ -103,6 +107,7 @@ def dc_npc(
     tol: float = 1e-8,
     fudge: float = 1,
     debug: bool = False,
+    max_iter: int | None = None,
 ) -> Tuple[NDArray, NDArray, NDArray]:
     """Natural parameter continuation differetial corrector
 
@@ -110,6 +115,8 @@ def dc_npc(
         X_guess (NDArray): guess for control variables
         f_df_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
         tol (float, optional): tolerance for convergence. Defaults to 1e-8.
+        max_iter: maximum number of iterations
+
 
     Returns:
         Tuple[NDArray, NDArray, NDArray]: X. final dF/dx, full-rev STM
@@ -125,6 +132,8 @@ def dc_npc(
     niters = 0
     dX = np.array([np.inf] * nX)
     while np.linalg.norm(f) > tol and np.linalg.norm(dX) > tol:
+        if max_iter is not None and niters > max_iter:
+            raise RuntimeError("Exceeded maximum iterations")
         f, dF, stm_full = f_df_func(X)
         dX = -np.linalg.inv(dF) @ f
         X += fudge * dX

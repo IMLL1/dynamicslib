@@ -118,6 +118,20 @@ def plotly_curve(x, y, z, name="", opacity=1.0, **kwargs):
     )
 
 
+def plotly_curve_2d(x, y, name="", opacity=1.0, **kwargs):
+    return go.Scatter(
+        x=x,
+        y=y,
+        mode="lines",
+        line=kwargs,
+        name=name,
+        hoverlabel=dict(
+            font=dict(size=9), namelength=-1, bgcolor="black", font_color="white"
+        ),
+        opacity=opacity,
+    )
+
+
 def make_label(data: List | NDArray, param_names: List[str]):
     terms = []
     for val, param in zip(data, param_names):
@@ -299,6 +313,157 @@ def plotly_family(
         plot_bgcolor="#000000",
         paper_bgcolor="#000000",
     )
+    
+    fig2.update_yaxes(exponentformat="power")
+
+    # DROPDOWNS
+    fig2.update_layout(
+        updatemenus=[
+            dict(
+                buttons=list(
+                    [
+                        dict(
+                            label=param,
+                            method="update",
+                            args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
+                        )
+                        for i, param in enumerate(param_names)
+                    ]
+                ),
+                direction="down",
+                showactive=True,
+                x=0,
+                xanchor="left",
+                y=1,
+                yanchor="bottom",
+            ),
+        ]
+    )
+
+    if html_save is not None:
+        fig.write_html(html_save + "_3d.html", include_plotlyjs="cdn")
+        fig2.write_html(html_save + "_sweep.html", include_plotlyjs="cdn")
+    if renderer is not None:
+        fig.show()
+        fig2.show()
+
+
+def plotly_family_planar(
+    xyzs: List,
+    name: str,
+    data: List | NDArray,
+    param_names: list,
+    colormap: str = "rainbow",
+    mu: float = muEM,
+    renderer: str | None = "browser",
+    html_save: str | None = None,
+    alpha: float = 1,
+):
+    data = np.array(data)
+    data = data.astype(np.float32)
+
+    assert len(xyzs) == len(data)
+    assert len(data[0]) == len(param_names)
+
+    xyzs = [np.float32(xyz) for xyz in xyzs]
+    if html_save is not None and html_save.endswith(".html"):
+        html_save = html_save.rstrip(".html")
+
+    if renderer is not None:
+        pio.renderers.default = renderer
+
+    n = len(xyzs)
+
+    xs, ys, _ = np.hstack(xyzs)
+    minx, miny = (min(xs), min(ys))
+    maxx, maxy = (max(xs), max(ys))
+    rng = 1.25 * max([maxx - minx, maxy - miny])
+
+    ctrX = (maxx + minx) / 2
+    ctrY = (maxy + miny) / 2
+    curves = []
+    for i, xyzs in enumerate(xyzs):
+        x, y, _ = xyzs
+        c = px.colors.sample_colorscale(colormap, i / n)[0]
+        lbl = make_label(data[i], param_names)
+        curves.append(plotly_curve_2d(x, y, lbl, color=c, width=3, opacity=alpha))
+
+    fig = go.Figure(data=curves)
+
+    fig.update_layout(
+        # scene=dict(xaxis_title="x [nd]", yaxis_title="y [nd]", zaxis_title="z [nd]"),
+        title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
+        width=1000,
+        height=800,
+        template="plotly_dark",
+        showlegend=False,
+        margin=dict(l=10, r=30, b=10, t=50),
+        plot_bgcolor="#000000",
+        paper_bgcolor="#000000",
+    )
+    fig.update_layout(
+        xaxis=dict(
+            title="x [nd]",
+            range=[ctrX - rng / 2, ctrX + rng / 2],
+        ),
+        yaxis=dict(
+            title="y [nd]",
+            range=[ctrY - rng / 2, ctrY + rng / 2],
+        ),
+        # aspectmode="cube",
+    )
+
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
+    Lpoints = get_Lpts(mu=mu)
+    fig.add_trace(
+        go.Scatter(
+            x=Lpoints[0],
+            y=Lpoints[1],
+            text=[f"L{lp+1}" for lp in range(5)],
+            hoverinfo="x+y+text",
+            mode="markers",
+            marker=dict(color="magenta", size=4),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[-mu, 1 - mu],
+            y=[0, 0],
+            mode="markers",
+            text=["P1", "P2"],
+            hoverinfo="x+y+text",
+            marker=dict(color="cyan"),
+        )
+    )
+
+    datatr = data.T
+    trace = go.Scatter(
+        x=list(range(n)),
+        y=datatr[0],
+        mode="markers",
+        name="Parameter Sweep",
+        marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
+    )
+    fig2 = go.Figure(data=trace)
+    fig2.update_layout(
+        title=dict(
+            text=name + " Parameter Sweep",
+            x=0.5,
+            xanchor="center",
+            yanchor="bottom",
+            y=0.95,
+        ),
+        xaxis=dict(title="Index Along Family"),
+        width=1000,
+        height=600,
+        template="plotly_dark",
+        showlegend=False,
+        margin=dict(l=0, r=0, b=0, t=50),
+        plot_bgcolor="#000000",
+        paper_bgcolor="#000000",
+    )
+    fig2.update_yaxes(exponentformat="power")
 
     # DROPDOWNS
     fig2.update_layout(
