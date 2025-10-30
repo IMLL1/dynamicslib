@@ -311,7 +311,7 @@ def plotly_family(
         y=datatr[param_names.index(color_by)],
         mode="markers",
         name="Parameter Sweep",
-        marker=dict(color=colors),
+        marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
     )
     fig2 = go.Figure(data=trace)
     fig2.update_layout(
@@ -322,12 +322,12 @@ def plotly_family(
             yanchor="bottom",
             y=0.95,
         ),
-        xaxis=dict(title="Index Along Family"),
+        # xaxis=dict(title="Index Along Family"),
         width=figsize[0],
         height=figsize[1],
         template="plotly_dark",
         showlegend=False,
-        margin=dict(l=0, r=0, b=0, t=50),
+        margin=dict(l=0, r=0, b=50, t=50),
         plot_bgcolor="#000000",
         paper_bgcolor="#000000",
     )
@@ -341,9 +341,9 @@ def plotly_family(
                 buttons=list(
                     [
                         dict(
-                            label=param,
+                            label="x: " + param,
                             method="update",
-                            args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
+                            args=[{"x": [datatr[i]]}, {"xaxis.title.text": param}],
                         )
                         for i, param in enumerate(param_names)
                     ]
@@ -352,6 +352,24 @@ def plotly_family(
                 showactive=True,
                 x=0,
                 xanchor="left",
+                y=1,
+                yanchor="bottom",
+            ),
+            dict(
+                buttons=list(
+                    [
+                        dict(
+                            label="y: " + param,
+                            method="update",
+                            args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
+                        )
+                        for i, param in enumerate(param_names)
+                    ]
+                ),
+                direction="down",
+                showactive=True,
+                x=1,
+                xanchor="right",
                 y=1,
                 yanchor="bottom",
             ),
