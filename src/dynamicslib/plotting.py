@@ -148,11 +148,13 @@ def plotly_family(
     colormap: str = "rainbow",
     mu: float = muEM,
     renderer: str | None = "browser",
+    color_by: str = "Index",
     html_save: str | None = None,
     alpha: float = 1,
 ):
     data = np.array(data)
     data = data.astype(np.float32)
+    datatr = data.T
 
     assert len(xyzs) == len(data)
     assert len(data[0]) == len(param_names)
@@ -180,10 +182,14 @@ def plotly_family(
     projZ = ctrZ - rng / 2
     projs = []
     curves3d = []
+    colornums = datatr[param_names.index(color_by)]
+    colornums -= min(colornums)
+    colornums /= max(colornums)
+    colors = px.colors.sample_colorscale(colormap, colornums)
     for i, xyzs in enumerate(xyzs):
         x, y, z = xyzs
-        c = px.colors.sample_colorscale(colormap, i / n)[0]
         lbl = make_label(data[i], param_names)
+        c = colors[i]
         curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5, opacity=alpha))
         projs.append(
             plotly_curve(
@@ -287,13 +293,12 @@ def plotly_family(
         ]
     )
 
-    datatr = data.T
     trace = go.Scatter(
         x=list(range(n)),
-        y=datatr[0],
+        y=datatr[param_names.index(color_by)],
         mode="markers",
         name="Parameter Sweep",
-        marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
+        marker=dict(color=colors),
     )
     fig2 = go.Figure(data=trace)
     fig2.update_layout(

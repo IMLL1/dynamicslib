@@ -75,9 +75,9 @@ def interp_hermite(
         )
 
     if flip:
-        t = np.flip(t)
-        x = np.flip(x, axis=0)
-        dxdt = np.flip(dxdt, axis=0)
+        t = t[::-1]
+        x = x[::-1]
+        dxdt = dxdt[::-1]
 
     if t_eval is None:
         if n_mult is not None:
@@ -117,8 +117,8 @@ def interp_hermite(
         i0 = i1
 
     if flip:
-        t_eval = np.flip(t_eval)
-        x_eval = np.flip(x_eval, axis=0)
+        t_eval = t_eval[::-1]
+        x_eval = x_eval[::-1]
 
     return t_eval, x_eval
 
