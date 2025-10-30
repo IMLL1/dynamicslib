@@ -151,6 +151,7 @@ def plotly_family(
     color_by: str = "Index",
     html_save: str | None = None,
     alpha: float = 1,
+    figsize: tuple[float, float] = (700, 500),
 ):
     data = np.array(data)
     data = data.astype(np.float32)
@@ -168,7 +169,8 @@ def plotly_family(
 
     n = len(xyzs)
 
-    curves = []
+    cdata = datatr[param_names.index(color_by)]  # color data
+
     xs, ys, zs = np.hstack(xyzs)
     minx, miny, minz = (min(xs), min(ys), min(zs))
     maxx, maxy, maxz = (max(xs), max(ys), max(zs))
@@ -182,8 +184,8 @@ def plotly_family(
     projZ = ctrZ - rng / 2
     projs = []
     curves3d = []
-    colornums = datatr[param_names.index(color_by)]
-    colornums -= min(colornums)
+
+    colornums = cdata - min(cdata)
     colornums /= max(colornums)
     colors = px.colors.sample_colorscale(colormap, colornums)
     for i, xyzs in enumerate(xyzs):
@@ -207,7 +209,19 @@ def plotly_family(
             )
         )
 
-    fig = go.Figure(data=[*curves3d, *projs])
+    cbar_dummy = go.Scatter3d(
+        x=[np.nan] * n,
+        y=[np.nan] * n,
+        z=[np.nan] * n,
+        mode="markers",
+        marker=dict(
+            color=cdata,
+            colorscale=colormap,
+            colorbar=dict(title=color_by.replace(" ", "<br>"), thickness=12),
+        ),
+    )
+
+    fig = go.Figure(data=[cbar_dummy, *curves3d, *projs])
 
     Lpoints = get_Lpts(mu=mu)
     fig.add_trace(
@@ -234,10 +248,9 @@ def plotly_family(
     )
 
     fig.update_layout(
-        # scene=dict(xaxis_title="x [nd]", yaxis_title="y [nd]", zaxis_title="z [nd]"),
         title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
-        width=1000,
-        height=800,
+        width=figsize[0],
+        height=figsize[1],
         template="plotly_dark",
         showlegend=False,
         margin=dict(l=0, r=30, b=0, t=50),
@@ -269,8 +282,8 @@ def plotly_family(
         aspectmode="cube",
     )
 
-    argshide = {"visible": [*[True] * n, *[False] * (3 * n), True, True]}
-    argsshow = {"visible": [*[True] * (4 * n + 2)]}
+    argshide = {"visible": [True, *[True] * n, *[False] * (3 * n), True, True]}
+    argsshow = {"visible": [True, *[True] * (4 * n + 2)]}
     fig.update_layout(
         updatemenus=[
             dict(
@@ -310,8 +323,8 @@ def plotly_family(
             y=0.95,
         ),
         xaxis=dict(title="Index Along Family"),
-        width=1000,
-        height=600,
+        width=figsize[0],
+        height=figsize[1],
         template="plotly_dark",
         showlegend=False,
         margin=dict(l=0, r=0, b=0, t=50),
@@ -396,7 +409,6 @@ def plotly_family_planar(
     fig = go.Figure(data=curves)
 
     fig.update_layout(
-        # scene=dict(xaxis_title="x [nd]", yaxis_title="y [nd]", zaxis_title="z [nd]"),
         title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
         width=1000,
         height=800,
@@ -501,3 +513,6 @@ def plotly_family_planar(
     if renderer is not None:
         fig.show()
         fig2.show()
+
+
+# TODO: colorbar, separately plot params vs one anoother in dropdown
