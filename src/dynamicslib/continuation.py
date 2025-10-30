@@ -62,7 +62,6 @@ def arclen_cont(
             print(f"Linear algebra error encountered: {err}")
             print("returning what's been calculated so far")
             break
-            
 
         Xs.append(X)
 
@@ -152,7 +151,7 @@ def find_bifurc(
     tol: float = 1e-10,
     skip_changes: int = 0,
     stabEps: float = 1e-5,
-) -> NDArray:
+) -> Tuple[NDArray, NDArray]:
     """Find bifurcation using changes in stability. This function can likely be gotten rid of
 
     Args:
@@ -165,7 +164,7 @@ def find_bifurc(
         stabEps (float, optional): Arbitrary epsilon to determine when an eigenvalue = +/-1. Defaults to 1e-5.
 
     Returns:
-        NDArray: Bifurcation control variables
+        NDArray: Bifurcation control variables, tangent vector
     """
     X = X0.copy()
     tangent_prev = dir0
@@ -195,11 +194,15 @@ def find_bifurc(
         tangent = svd.Vh[-1]
 
         if stabs != stabs_prev and None not in stabs_prev:
-            if skip_changes == 0:
-                tangent = svd.Vh[-2]
-                print(f"BIFURCATING @ X={X} in the direction of {tangent}")
-                return X
+            if abs(svd.S[-2]) <= 0.5:
+                # if svd.
+                if skip_changes == 0:
+                    tangent = svd.Vh[-2]
+                    print(f"BIFURCATING @ X={X} in the direction of {tangent}")
+                    return X, tangent
+                else:
+                    skip_changes -= 1
             else:
-                skip_changes -= 1
+                pass
 
         stabs_prev = stabs
