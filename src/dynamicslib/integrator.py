@@ -68,8 +68,16 @@ def interp_hermite(
         _type_: new ts (N2, ), new xs (N2, nx)
     """
 
-    if t[-1] < t[0]:
-        raise NotImplementedError("Ts must be sorted for now")
+    flip = t[-1] < t[0]  # whether direction is flipped
+    if len(np.shape(x)) != 2:
+        raise NotImplementedError(
+            "can only interpolate vectors for now, so x and dxdt must be 2D"
+        )
+
+    if flip:
+        t = np.flip(t)
+        x = np.flip(x, axis=0)
+        dxdt = np.flip(dxdt, axis=0)
 
     if t_eval is None:
         if n_mult is not None:
@@ -82,6 +90,8 @@ def interp_hermite(
             raise ValueError("Must provide value for t_eval or n_mult")
     else:
         assert t_eval[0] >= t[0] and t_eval[-1] <= t[-1]
+        if flip:
+            t_eval = np.flip(t_eval)
 
     i0 = 0
 
@@ -89,11 +99,13 @@ def interp_hermite(
     for j in range(len(t) - 1):
         t0 = t[j]
         t1 = t[j + 1]
-        while t_eval[i0] < t0:
+        while i0 < len(t_eval) and t_eval[i0] < t0:
             i0 += 1
         i1 = i0 + 1
         while i1 < len(t_eval) and t_eval[i1 - 1] < t1:
             i1 += 1
+        if i0 == len(t_eval):
+            break
 
         ts = t_eval[i0:i1]
         x0 = x[j]
@@ -103,6 +115,10 @@ def interp_hermite(
         newterms = Hermite_interp_interval(ts, t0, t1, x0, x1, dxdt0, dxdt1)
         x_eval = np.concatenate((x_eval, newterms))
         i0 = i1
+
+    if flip:
+        t_eval = np.flip(t_eval)
+        x_eval = np.flip(x_eval, axis=0)
 
     return t_eval, x_eval
 
