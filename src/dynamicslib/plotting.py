@@ -6,6 +6,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.express as px
 
+from dash import Dash, dcc, html, Input, Output, callback
+
 from dynamicslib.consts import muEM
 from dynamicslib.common import get_Lpts
 
@@ -103,13 +105,14 @@ def matplotlib_family(
 
 
 # PLOTLY
-def plotly_curve(x, y, z, name="", opacity=1.0, **kwargs):
+def plotly_curve(x, y, z, name="", opacity=1.0, uid="", **kwargs):
     return go.Scatter3d(
         x=x,
         y=y,
         z=z,
         mode="lines",
         line=kwargs,
+        uid=uid,
         name=name,
         hoverlabel=dict(
             font=dict(size=9), namelength=-1, bgcolor="black", font_color="white"
@@ -194,19 +197,13 @@ def plotly_family(
         c = colors[i]
         curves3d.append(plotly_curve(x, y, z, lbl, color=c, width=5, opacity=alpha))
         projs.append(
-            plotly_curve(
-                x * 0 + projX, y, z, lbl, color=c, width=2, opacity=0.75 * alpha
-            )
+            plotly_curve(x * 0 + projX, y, z, color=c, width=2, opacity=0.75 * alpha)
         )
         projs.append(
-            plotly_curve(
-                x, 0 * y + projY, z, lbl, color=c, width=2, opacity=0.75 * alpha
-            )
+            plotly_curve(x, 0 * y + projY, z, color=c, width=2, opacity=0.75 * alpha)
         )
         projs.append(
-            plotly_curve(
-                x, y, 0 * z + projZ, lbl, color=c, width=2, opacity=0.75 * alpha
-            )
+            plotly_curve(x, y, 0 * z + projZ, color=c, width=2, opacity=0.75 * alpha)
         )
 
     cbar_dummy = go.Scatter3d(
@@ -382,6 +379,201 @@ def plotly_family(
     if renderer is not None:
         fig.show()
         fig2.show()
+
+
+def plotly_test(
+    xyzs: List,
+    name: str,
+    data: List | NDArray,
+    param_names: list,
+    colormap: str = "rainbow",
+    mu: float = muEM,
+    color_by: str = "Index",
+    html_save: str | None = None,
+    alpha: float = 1,
+    figsize: tuple[float, float] = (700, 500),
+):
+    data = np.array(data)
+    data = data.astype(np.float32)
+    datatr = data.T
+
+    assert len(xyzs) == len(data)
+    assert len(data[0]) == len(param_names)
+
+    xyzs = [np.float32(xyz) for xyz in xyzs]
+    if html_save is not None and html_save.endswith(".html"):
+        html_save = html_save.rstrip(".html")
+
+    n = len(xyzs)
+
+    cdata = datatr[param_names.index(color_by)]  # color data
+
+    xs, ys, zs = np.hstack(xyzs)
+    minx, miny, minz = (min(xs), min(ys), min(zs))
+    maxx, maxy, maxz = (max(xs), max(ys), max(zs))
+    rng = 1.25 * max([maxx - minx, maxy - miny, maxz - minz])
+
+    ctrX = (maxx + minx) / 2
+    ctrY = (maxy + miny) / 2
+    ctrZ = (maxz + minz) / 2
+    projX = ctrX - rng / 2
+    projY = ctrY - rng / 2
+    projZ = ctrZ - rng / 2
+    projs = []
+    curves3d = []
+
+    colornums = cdata - min(cdata)
+    colornums /= max(colornums)
+    colors = px.colors.sample_colorscale(colormap, colornums)
+    for i, xyzs in enumerate(xyzs):
+        x, y, z = xyzs
+        lbl = make_label(data[i], param_names)
+        c = colors[i]
+        curves3d.append(
+            plotly_curve(x, y, z, lbl, color=c, width=5, opacity=alpha, uid=f"traj{i}")
+        )
+        projs.append(
+            plotly_curve(
+                x * 0 + projX,
+                y,
+                z,
+                color=c,
+                width=2,
+                opacity=0.75 * alpha,
+                uid=f"proj{i}",
+            )
+        )
+        projs.append(
+            plotly_curve(
+                x,
+                0 * y + projY,
+                z,
+                color=c,
+                width=2,
+                opacity=0.75 * alpha,
+                uid=f"proj{i}",
+            )
+        )
+        projs.append(
+            plotly_curve(
+                x,
+                y,
+                0 * z + projZ,
+                color=c,
+                width=2,
+                opacity=0.75 * alpha,
+                uid=f"proj{i}",
+            )
+        )
+
+    cbar_dummy = go.Scatter3d(
+        x=[np.nan] * n,
+        y=[np.nan] * n,
+        z=[np.nan] * n,
+        mode="markers",
+        name="dummy",
+        marker=dict(
+            color=cdata,
+            colorscale=colormap,
+            colorbar=dict(title=color_by.replace(" ", "<br>"), thickness=12),
+        ),
+    )
+
+    fig = go.Figure(data=[cbar_dummy, *curves3d, *projs])
+
+    Lpoints = get_Lpts(mu=mu)
+    fig.add_trace(
+        go.Scatter3d(
+            x=Lpoints[0],
+            y=Lpoints[1],
+            z=0 * Lpoints[0],
+            text=[f"L{lp+1}" for lp in range(5)],
+            hoverinfo="x+y+text",
+            mode="markers",
+            marker=dict(color="magenta", size=4),
+        )
+    )
+    fig.add_trace(
+        go.Scatter3d(
+            x=[-mu, 1 - mu],
+            y=[0, 0],
+            z=[0, 0],
+            mode="markers",
+            text=["P1", "P2"],
+            hoverinfo="x+y+text",
+            marker=dict(color="cyan"),
+        )
+    )
+
+    fig.update_layout(
+        title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
+        width=figsize[0],
+        height=figsize[1],
+        template="plotly_dark",
+        showlegend=False,
+        margin=dict(l=0, r=30, b=0, t=50),
+        plot_bgcolor="#000000",
+        paper_bgcolor="#000000",
+    )
+    fig.update_scenes(
+        xaxis=dict(
+            title="x [nd]",
+            showbackground=False,
+            showgrid=True,
+            zeroline=False,
+            range=[ctrX - rng / 2, ctrX + rng / 2],
+        ),
+        yaxis=dict(
+            title="y [nd]",
+            showbackground=False,
+            showgrid=True,
+            zeroline=False,
+            range=[ctrY - rng / 2, ctrY + rng / 2],
+        ),
+        zaxis=dict(
+            title="z [nd]",
+            showbackground=False,
+            showgrid=True,
+            zeroline=False,
+            range=[ctrZ - rng / 2, ctrZ + rng / 2],
+        ),
+        aspectmode="cube",
+    )
+
+    app = Dash()
+    app.layout = html.Div(
+        [
+            dcc.Graph(figure=fig, id="display"),
+            dcc.Dropdown(param_names, param_names[0], id="param-dropdown"),
+        ]
+    )
+
+    @callback(Output("display", "figure"), Input("param-dropdown", "value"))
+    def update_output(value):
+        # colorbar_title_text='My Color Scale'
+        updated_fig = go.Figure(fig)
+        # updated_fig.update_coloraxes(colorbar_title_text=value)
+        cdata = datatr[param_names.index(value)]  # color data
+        colornums = cdata - min(cdata)
+        colornums /= max(colornums)
+        colors = px.colors.sample_colorscale(colormap, colornums)
+        updated_fig.update_traces(
+            marker=dict(color=cdata, colorbar=dict(title=value.replace(" ", "<br>"))),
+            selector=dict(name="dummy"),
+        )
+
+        for obj in fig.data:
+            if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
+                num = int(obj.uid[4:])
+                obj.line.color = colors[num]
+        return updated_fig
+
+    if html_save is not None:
+        fig.write_html(html_save + "_3d.html", include_plotlyjs="cdn")
+        # fig2.write_html(html_save + "_sweep.html", include_plotlyjs="cdn")
+    # if renderer is not None:
+    #     fig.show()
+    app.run(debug=True, use_reloader=False)
 
 
 def plotly_family_planar(

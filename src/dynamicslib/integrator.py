@@ -1,9 +1,9 @@
 from numba import njit
 from numpy.linalg import norm
-from numpy import array, concatenate, inf, float64, expand_dims, log10
+from numpy import array, concatenate, inf, float64, expand_dims
 from numpy.typing import NDArray
 import numpy as np
-from typing import List, Tuple, Callable
+from typing import Tuple, Callable
 import dynamicslib.DOP853_coefs as coefs
 
 

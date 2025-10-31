@@ -143,7 +143,107 @@ def natural_param_cont(
     return Xs, eig_vals, params
 
 
-def find_bifurc(
+def find_per_mult(
+    X0: NDArray,
+    f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
+    dir0: NDArray | List,
+    s0: float = 1e-3,
+    tol: float = 1e-10,
+    N: int = 3,
+    angeps=1e-4,
+    skip: int = 0,
+) -> Tuple[NDArray, NDArray]:
+    """Find find period multiplying bifurcation with period N
+
+    Args:
+        X0 (NDArray): initial control variables
+        f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
+        dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
+        s0 (float, optional): step size. Defaults to 1e-3.
+        tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+        N (int): multiplier
+        angeps (float, optional): How exact does the argument need to be?
+
+    Returns:
+        NDArray: Bifurcation control variables, tangent vector
+    """
+    assert N > 1
+    target_eigval = np.cos(2 * np.pi / N) + 1j * np.sin(2 * np.pi / N)
+
+    s = s0
+
+    X = X0.copy()
+    dir0 = np.array(dir0)
+    tangent_prev = dir0
+    targang = 2 * np.pi / N
+
+    _, dF, stm = f_df_stm_func(X0)
+    # svd = np.linalg.svd(dF)
+    tangent = tangent_prev
+
+    Xs = [X0]
+
+    # eigs_prev =
+    eigs = [np.linalg.eigvals(stm)]
+    # justSwitched = False
+
+    while True:
+        if np.dot(tangent, tangent_prev) < 0:
+            tangent *= -1
+        # if justSwitched:
+        #     tangent *= -1
+        #     justSwitched = False
+        X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol)
+
+        Xs.append(X)
+
+        # check the argument
+        eigs.append(np.linalg.eigvals(stm))
+
+        argc = np.argmin(np.abs(eigs[-1] - target_eigval))
+        valc = eigs[-1][argc]
+        angc = np.angle(valc)
+        argp = np.argmin(np.abs(eigs[-2] - target_eigval))
+        valp = eigs[-2][argp]
+        angp = np.angle(valp)
+
+        if N > 2:
+            # whether weve crossed and are unit magnitude
+            cross1 = (
+                (angc < targang) and (angp > targang) and abs(abs(valc) - 1) < angeps
+            )
+            cross2 = (
+                (angc > targang) and (angp < targang) and abs(abs(valc) - 1) < angeps
+            )
+        else:  # untested
+            # whether we crossed x=-1
+            cross1 = np.real(valc)<-1 and abs(np.imag(valc)) < angeps and np.real(valp)>-1
+            cross2 = np.real(valp)<-1 and abs(np.imag(valp)) < angeps and np.real(valc)>-1
+        print(angc)
+
+        if abs(angc - targang) < angeps and skip == 0:
+            break
+        if cross1 or cross2:
+            if skip > 0:
+                skip -= 1
+            else:
+                Xs = [X]
+                eigs = [eigs[-1]]
+                tangent *= -1
+                s /= 10
+
+        tangent_prev = tangent
+
+        svd = np.linalg.svd(dF)
+        tangent = svd.Vh[-1]
+    X[-1] *= N
+    _, dF, _ = f_df_stm_func(X)
+    svd = np.linalg.svd(dF)
+    tangent = svd.Vh[-2]
+    return X, tangent
+
+
+def find_tangent_bif(
     X0: NDArray,
     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
     dir0: NDArray | List,
@@ -194,15 +294,15 @@ def find_bifurc(
         tangent = svd.Vh[-1]
 
         if stabs != stabs_prev and None not in stabs_prev:
-            if abs(svd.S[-2]) <= 0.5:
+            # if abs(svd.S[-2]) <= 0.5:
                 # if svd.
-                if skip_changes == 0:
-                    tangent = svd.Vh[-2]
-                    print(f"BIFURCATING @ X={X} in the direction of {tangent}")
-                    return X, tangent
-                else:
-                    skip_changes -= 1
+            if skip_changes == 0:
+                tangent = svd.Vh[-2]
+                print(f"BIFURCATING @ X={X} in the direction of {tangent}")
+                return X, tangent
             else:
-                pass
+                skip_changes -= 1
+            # else:
+            #     pass
 
         stabs_prev = stabs

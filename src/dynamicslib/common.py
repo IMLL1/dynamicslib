@@ -62,7 +62,7 @@ def get_Lpts(mu: float = muEM):
 
 
 @njit(cache=True)
-def U_hess(pos: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
+def U_hess(pos: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
     x, y, z = pos
     r1mag = np.sqrt(y**2 + z**2 + (mu + x) ** 2)
     r2mag = np.sqrt(y**2 + z**2 + (mu + x - 1) ** 2)
@@ -80,7 +80,7 @@ def U_hess(pos: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
 
 
 @njit(cache=True)
-def get_A(state: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
+def get_A(state: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
     pos = state[:3]
     Uxx = U_hess(pos, mu)
     O = np.zeros((3, 3))
@@ -93,12 +93,12 @@ def get_A(state: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
 
 
 @njit(cache=True)
-def eom_jac(_, state: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
+def eom_jac(_, state: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
     return get_A(state, mu)
 
 
 @njit(cache=True)
-def eom(_, state: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
+def eom(_, state: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
     x, y, z, vx, vy, vz = state[:6]
     xyz = state[:3]
     r1vec = xyz + np.array([mu, 0, 0])
@@ -120,8 +120,8 @@ def eom(_, state: NDArray[np.float64], mu: float = muEM) -> NDArray[np.float64]:
 
 @njit(cache=True)
 def coupled_stm_eom(
-    _, state: NDArray[np.float64], mu: float = muEM
-) -> NDArray[np.float64]:
+    _, state: NDArray[np.floating], mu: float = muEM
+) -> NDArray[np.floating]:
     pv = state[:6]
     dpv = eom(None, pv, mu)
     stm = state[6:].reshape((6, 6))
@@ -134,8 +134,8 @@ def coupled_stm_eom(
 
 @njit(cache=True)
 def coupled_stm_eom_jac(
-    _, state: NDArray[np.float64], mu: float = muEM
-) -> NDArray[np.float64]:
+    _, state: NDArray[np.floating], mu: float = muEM
+) -> NDArray[np.floating]:
     # fmt: off
     x, y, z, vx, vy, vz, Phi11, Phi12, Phi13, Phi14, Phi15, Phi16, Phi21, Phi22, Phi23, Phi24, Phi25, Phi26, Phi31, Phi32, Phi33, Phi34, Phi35, Phi36, Phi41, Phi42, Phi43, Phi44, Phi45, Phi46, Phi51, Phi52, Phi53, Phi54, Phi55, Phi56, Phi61, Phi62, Phi63, Phi64, Phi65, Phi66 = state
     x1 = x+mu
@@ -148,7 +148,7 @@ def coupled_stm_eom_jac(
 
 
 @njit(cache=True)
-def jacobi_constant(state: NDArray[np.float64], mu: float = muEM) -> float:
+def jacobi_constant(state: NDArray[np.floating], mu: float = muEM) -> float:
     x, y, z = state[:3]
     r1mag = np.sqrt((x + mu) ** 2 + y**2 + z**2)
     r2mag = np.sqrt((x - 1 + mu) ** 2 + y**2 + z**2)

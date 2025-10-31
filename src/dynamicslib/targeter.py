@@ -34,6 +34,7 @@ def f_df_CR3_single(
         args=(mu,),
     )
     xf, stm = ys[:6, -1], ys[6:, -1].reshape(6, 6)
+    xf = np.array(xf)
     eomf = eom(0, xf, mu)
 
     dF = dF_func(eomf, stm)
