@@ -352,7 +352,7 @@ def dop853(
 
     # interpolate as needed
     if t_eval is not None:
-        t_eval = np.array(t_eval)
+        t_eval = np.asarray(t_eval)
         _, xs = interp_hermite(ts, xs, fs, t_eval)
 
     # if not dense_output:

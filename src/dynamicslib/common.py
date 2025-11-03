@@ -63,12 +63,11 @@ def get_Lpts(mu: float = muEM):
 
 @njit(cache=True)
 def U_hess(pos: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
-    x, y, z = pos
-    r1mag = np.sqrt(y**2 + z**2 + (mu + x) ** 2)
-    r2mag = np.sqrt(y**2 + z**2 + (mu + x - 1) ** 2)
     r1 = pos - np.array([-mu, 0, 0])
     r2 = pos - np.array([1 - mu, 0, 0])
-    H = (
+    r1mag = np.linalg.norm(r1)
+    r2mag = np.linalg.norm(r2)
+    Uxx = (
         np.diag(np.array([1, 1, 0]))
         + 3 * (1 - mu) / r1mag**5 * np.outer(r1, r1)
         - (1 - mu) / r1mag**3 * np.eye(3)
@@ -76,7 +75,7 @@ def U_hess(pos: NDArray[np.floating], mu: float = muEM) -> NDArray[np.floating]:
         - mu / r2mag**3 * np.eye(3)
     )
 
-    return H
+    return Uxx
 
 
 @njit(cache=True)

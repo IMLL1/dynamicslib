@@ -381,17 +381,14 @@ def plotly_family(
         fig2.show()
 
 
-def plotly_test(
+def plotly_display(
     xyzs: List,
-    name: str,
     data: List | NDArray,
     param_names: list,
     colormap: str = "rainbow",
     mu: float = muEM,
-    color_by: str = "Index",
-    html_save: str | None = None,
-    alpha: float = 1,
-    figsize: tuple[float, float] = (700, 500),
+    spacing=20,
+    figsize: tuple[float, float] = (900, 600),
 ):
     data = np.array(data)
     data = data.astype(np.float32)
@@ -401,12 +398,9 @@ def plotly_test(
     assert len(data[0]) == len(param_names)
 
     xyzs = [np.float32(xyz) for xyz in xyzs]
-    if html_save is not None and html_save.endswith(".html"):
-        html_save = html_save.rstrip(".html")
-
     n = len(xyzs)
 
-    cdata = datatr[param_names.index(color_by)]  # color data
+    cdata = datatr[param_names.index("Index")]  # color data
 
     xs, ys, zs = np.hstack(xyzs)
     minx, miny, minz = (min(xs), min(ys), min(zs))
@@ -428,41 +422,24 @@ def plotly_test(
     for i, xyzs in enumerate(xyzs):
         x, y, z = xyzs
         lbl = make_label(data[i], param_names)
+
         c = colors[i]
         curves3d.append(
-            plotly_curve(x, y, z, lbl, color=c, width=5, opacity=alpha, uid=f"traj{i}")
+            plotly_curve(x, y, z, lbl, color=c, width=5, opacity=1, uid=f"traj{i}")
         )
         projs.append(
             plotly_curve(
-                x * 0 + projX,
-                y,
-                z,
-                color=c,
-                width=2,
-                opacity=0.75 * alpha,
-                uid=f"proj{i}",
+                x * 0 + projX, y, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
             )
         )
         projs.append(
             plotly_curve(
-                x,
-                0 * y + projY,
-                z,
-                color=c,
-                width=2,
-                opacity=0.75 * alpha,
-                uid=f"proj{i}",
+                x, 0 * y + projY, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
             )
         )
         projs.append(
             plotly_curve(
-                x,
-                y,
-                0 * z + projZ,
-                color=c,
-                width=2,
-                opacity=0.75 * alpha,
-                uid=f"proj{i}",
+                x, y, 0 * z + projZ, color=c, width=2, opacity=0.75, uid=f"proj{i}"
             )
         )
 
@@ -475,11 +452,12 @@ def plotly_test(
         marker=dict(
             color=cdata,
             colorscale=colormap,
-            colorbar=dict(title=color_by.replace(" ", "<br>"), thickness=12),
+            colorbar=dict(title="Index", thickness=12),
         ),
     )
 
     fig = go.Figure(data=[cbar_dummy, *curves3d, *projs])
+
 
     Lpoints = get_Lpts(mu=mu)
     fig.add_trace(
@@ -506,7 +484,6 @@ def plotly_test(
     )
 
     fig.update_layout(
-        title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
         width=figsize[0],
         height=figsize[1],
         template="plotly_dark",
@@ -540,16 +517,35 @@ def plotly_test(
         aspectmode="cube",
     )
 
+    # INTERACTIVITY
     app = Dash()
     app.layout = html.Div(
         [
             dcc.Graph(figure=fig, id="display"),
-            dcc.Dropdown(param_names, param_names[0], id="param-dropdown"),
+            # dcc.Input(type="number", value=5, id="skip-type"),
+            # dcc.RangeSlider(
+            #     0,
+            #     n,
+            #     marks=None,
+            #     value=[0, n],
+            #     updatemode="drag",
+            #     tooltip={"placement": "bottom", "always_visible": True},
+            #     id="disp-slider",
+            # ),
+            dcc.Dropdown(
+                ["Index", "Period", "Jacobi Constant", "Stability Index"],
+                "Index",
+                id="param-dropdown",
+            ),
         ]
     )
 
-    @callback(Output("display", "figure"), Input("param-dropdown", "value"))
-    def update_output(value):
+    @callback(
+        Output("display", "figure", allow_duplicate=True),
+        Input("param-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def update_colorby(value):
         # colorbar_title_text='My Color Scale'
         updated_fig = go.Figure(fig)
         # updated_fig.update_coloraxes(colorbar_title_text=value)
@@ -568,161 +564,193 @@ def plotly_test(
                 obj.line.color = colors[num]
         return updated_fig
 
-    if html_save is not None:
-        fig.write_html(html_save + "_3d.html", include_plotlyjs="cdn")
-        # fig2.write_html(html_save + "_sweep.html", include_plotlyjs="cdn")
-    # if renderer is not None:
-    #     fig.show()
-    app.run(debug=True, use_reloader=False)
+    # @callback(
+    #     Output("display", "figure", allow_duplicate=True),
+    #     Input("disp-slider", "value"),
+    #     prevent_initial_call=True,
+    # )
+    # def update_vis_range(value):
+    #     # transformed_value = [transform_value(v) for v in value]
+    #     # return "Linear Value: {}, Log Value: [{:0.2f}, {:0.2f}]".format(
+    #     #     str(value), transformed_value[0], transformed_value[1]
+    #     # )
+    #     updated_fig = go.Figure(fig)
+    #     # updated_fig.update_coloraxes(colorbar_title_text=value)
+
+    #     for obj in fig.data:
+    #         if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
+    #             num = int(obj.uid[4:])
+    #             print(value)
+    #             # obj.visible = num >= value[0] and num < value[1]
+    #             # print(num)
+    #             # obj.visible = (num//4 == 0)
+    #     return updated_fig
+
+    # @callback(
+    #     Output("display", "figure", allow_duplicate=True),
+    #     Input("skip-type", "value"),
+    #     prevent_initial_call=True,
+    # )
+    # def update_skip(value):
+
+    #     updated_fig = go.Figure(fig)
+
+    #     if value is not None:
+    #         skip = int(value)  # Explicitly cast to integer
+    #         for obj in fig.data:
+    #             if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
+    #                 num = int(obj.uid[4:])
+    #                 obj.visible = num % skip == 0
+    #     # return "Enter a number above."
+    #     return updated_fig
+
+    app.run(debug=False, use_reloader=False)
 
 
-def plotly_family_planar(
-    xyzs: List,
-    name: str,
-    data: List | NDArray,
-    param_names: list,
-    colormap: str = "rainbow",
-    mu: float = muEM,
-    renderer: str | None = "browser",
-    html_save: str | None = None,
-    alpha: float = 1,
-):
-    data = np.array(data)
-    data = data.astype(np.float32)
+# def plotly_family_planar(
+#     xyzs: List,
+#     name: str,
+#     data: List | NDArray,
+#     param_names: list,
+#     colormap: str = "rainbow",
+#     mu: float = muEM,
+#     renderer: str | None = "browser",
+#     html_save: str | None = None,
+#     alpha: float = 1,
+# ):
+#     data = np.array(data)
+#     data = data.astype(np.float32)
 
-    assert len(xyzs) == len(data)
-    assert len(data[0]) == len(param_names)
+#     assert len(xyzs) == len(data)
+#     assert len(data[0]) == len(param_names)
 
-    xyzs = [np.float32(xyz) for xyz in xyzs]
-    if html_save is not None and html_save.endswith(".html"):
-        html_save = html_save.rstrip(".html")
+#     xyzs = [np.float32(xyz) for xyz in xyzs]
+#     if html_save is not None and html_save.endswith(".html"):
+#         html_save = html_save.rstrip(".html")
 
-    if renderer is not None:
-        pio.renderers.default = renderer
+#     if renderer is not None:
+#         pio.renderers.default = renderer
 
-    n = len(xyzs)
+#     n = len(xyzs)
 
-    xs, ys, _ = np.hstack(xyzs)
-    minx, miny = (min(xs), min(ys))
-    maxx, maxy = (max(xs), max(ys))
-    rng = 1.25 * max([maxx - minx, maxy - miny])
+#     xs, ys, _ = np.hstack(xyzs)
+#     minx, miny = (min(xs), min(ys))
+#     maxx, maxy = (max(xs), max(ys))
+#     rng = 1.25 * max([maxx - minx, maxy - miny])
 
-    ctrX = (maxx + minx) / 2
-    ctrY = (maxy + miny) / 2
-    curves = []
-    for i, xyzs in enumerate(xyzs):
-        x, y, _ = xyzs
-        c = px.colors.sample_colorscale(colormap, i / n)[0]
-        lbl = make_label(data[i], param_names)
-        curves.append(plotly_curve_2d(x, y, lbl, color=c, width=3, opacity=alpha))
+#     ctrX = (maxx + minx) / 2
+#     ctrY = (maxy + miny) / 2
+#     curves = []
+#     for i, xyzs in enumerate(xyzs):
+#         x, y, _ = xyzs
+#         c = px.colors.sample_colorscale(colormap, i / n)[0]
+#         lbl = make_label(data[i], param_names)
+#         curves.append(plotly_curve_2d(x, y, lbl, color=c, width=3, opacity=alpha))
 
-    fig = go.Figure(data=curves)
+#     fig = go.Figure(data=curves)
 
-    fig.update_layout(
-        title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
-        width=1000,
-        height=800,
-        template="plotly_dark",
-        showlegend=False,
-        margin=dict(l=10, r=30, b=10, t=50),
-        plot_bgcolor="#000000",
-        paper_bgcolor="#000000",
-    )
-    fig.update_layout(
-        xaxis=dict(
-            title="x [nd]",
-            range=[ctrX - rng / 2, ctrX + rng / 2],
-        ),
-        yaxis=dict(
-            title="y [nd]",
-            range=[ctrY - rng / 2, ctrY + rng / 2],
-        ),
-        # aspectmode="cube",
-    )
+#     fig.update_layout(
+#         title=dict(text=name, x=0.5, xanchor="center", yanchor="bottom", y=0.95),
+#         width=1000,
+#         height=800,
+#         template="plotly_dark",
+#         showlegend=False,
+#         margin=dict(l=10, r=30, b=10, t=50),
+#         plot_bgcolor="#000000",
+#         paper_bgcolor="#000000",
+#     )
+#     fig.update_layout(
+#         xaxis=dict(
+#             title="x [nd]",
+#             range=[ctrX - rng / 2, ctrX + rng / 2],
+#         ),
+#         yaxis=dict(
+#             title="y [nd]",
+#             range=[ctrY - rng / 2, ctrY + rng / 2],
+#         ),
+#         # aspectmode="cube",
+#     )
 
-    fig.update_yaxes(scaleanchor="x", scaleratio=1, exponentformat="power")
-    fig.update_xaxes(exponentformat="power")
+#     fig.update_yaxes(scaleanchor="x", scaleratio=1, exponentformat="power")
+#     fig.update_xaxes(exponentformat="power")
 
-    Lpoints = get_Lpts(mu=mu)
-    fig.add_trace(
-        go.Scatter(
-            x=Lpoints[0],
-            y=Lpoints[1],
-            text=[f"L{lp+1}" for lp in range(5)],
-            hoverinfo="x+y+text",
-            mode="markers",
-            marker=dict(color="magenta", size=4),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=[-mu, 1 - mu],
-            y=[0, 0],
-            mode="markers",
-            text=["P1", "P2"],
-            hoverinfo="x+y+text",
-            marker=dict(color="cyan"),
-        )
-    )
+#     Lpoints = get_Lpts(mu=mu)
+#     fig.add_trace(
+#         go.Scatter(
+#             x=Lpoints[0],
+#             y=Lpoints[1],
+#             text=[f"L{lp+1}" for lp in range(5)],
+#             hoverinfo="x+y+text",
+#             mode="markers",
+#             marker=dict(color="magenta", size=4),
+#         )
+#     )
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[-mu, 1 - mu],
+#             y=[0, 0],
+#             mode="markers",
+#             text=["P1", "P2"],
+#             hoverinfo="x+y+text",
+#             marker=dict(color="cyan"),
+#         )
+#     )
 
-    datatr = data.T
-    trace = go.Scatter(
-        x=list(range(n)),
-        y=datatr[0],
-        mode="markers",
-        name="Parameter Sweep",
-        marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
-    )
-    fig2 = go.Figure(data=trace)
-    fig2.update_layout(
-        title=dict(
-            text=name + " Parameter Sweep",
-            x=0.5,
-            xanchor="center",
-            yanchor="bottom",
-            y=0.95,
-        ),
-        xaxis=dict(title="Index Along Family"),
-        width=1000,
-        height=600,
-        template="plotly_dark",
-        showlegend=False,
-        margin=dict(l=0, r=0, b=0, t=50),
-        plot_bgcolor="#000000",
-        paper_bgcolor="#000000",
-    )
-    fig2.update_yaxes(exponentformat="power")
+#     datatr = data.T
+#     trace = go.Scatter(
+#         x=list(range(n)),
+#         y=datatr[0],
+#         mode="markers",
+#         name="Parameter Sweep",
+#         marker=dict(color=px.colors.sample_colorscale(colormap, np.arange(n) / n)),
+#     )
+#     fig2 = go.Figure(data=trace)
+#     fig2.update_layout(
+#         title=dict(
+#             text=name + " Parameter Sweep",
+#             x=0.5,
+#             xanchor="center",
+#             yanchor="bottom",
+#             y=0.95,
+#         ),
+#         xaxis=dict(title="Index Along Family"),
+#         width=1000,
+#         height=600,
+#         template="plotly_dark",
+#         showlegend=False,
+#         margin=dict(l=0, r=0, b=0, t=50),
+#         plot_bgcolor="#000000",
+#         paper_bgcolor="#000000",
+#     )
+#     fig2.update_yaxes(exponentformat="power")
 
-    # DROPDOWNS
-    fig2.update_layout(
-        updatemenus=[
-            dict(
-                buttons=list(
-                    [
-                        dict(
-                            label=param,
-                            method="update",
-                            args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
-                        )
-                        for i, param in enumerate(param_names)
-                    ]
-                ),
-                direction="down",
-                showactive=True,
-                x=0,
-                xanchor="left",
-                y=1,
-                yanchor="bottom",
-            ),
-        ]
-    )
+#     # DROPDOWNS
+#     fig2.update_layout(
+#         updatemenus=[
+#             dict(
+#                 buttons=list(
+#                     [
+#                         dict(
+#                             label=param,
+#                             method="update",
+#                             args=[{"y": [datatr[i]]}, {"yaxis.title.text": param}],
+#                         )
+#                         for i, param in enumerate(param_names)
+#                     ]
+#                 ),
+#                 direction="down",
+#                 showactive=True,
+#                 x=0,
+#                 xanchor="left",
+#                 y=1,
+#                 yanchor="bottom",
+#             ),
+#         ]
+#     )
 
-    if html_save is not None:
-        fig.write_html(html_save + "_3d.html", include_plotlyjs="cdn")
-        fig2.write_html(html_save + "_sweep.html", include_plotlyjs="cdn")
-    if renderer is not None:
-        fig.show()
-        fig2.show()
-
-
-# TODO: colorbar, separately plot params vs one anoother in dropdown
+#     if html_save is not None:
+#         fig.write_html(html_save + "_3d.html", include_plotlyjs="cdn")
+#         fig2.write_html(html_save + "_sweep.html", include_plotlyjs="cdn")
+#     if renderer is not None:
+#         fig.show()
+#         fig2.show()

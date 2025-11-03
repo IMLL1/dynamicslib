@@ -216,9 +216,22 @@ def find_per_mult(
                 (angc > targang) and (angp < targang) and abs(abs(valc) - 1) < angeps
             )
         else:  # untested
-            # whether we crossed x=-1
-            cross1 = np.real(valc)<-1 and abs(np.imag(valc)) < angeps and np.real(valp)>-1
-            cross2 = np.real(valp)<-1 and abs(np.imag(valp)) < angeps and np.real(valc)>-1
+            # whether we crossed x=-1. If we were getting closer but now we're getting further. In other words, if distance is increasing?
+            
+            # current and previous distance to -1
+            distc = np.abs(valc + 1)
+            distp = np.abs(valp + 1)
+            
+            cross1 = (
+                np.real(valc) < -1
+                and abs(np.imag(valc)) < angeps
+                and np.real(valp) > -1
+            )
+            cross2 = (
+                np.real(valp) < -1
+                and abs(np.imag(valp)) < angeps
+                and np.real(valc) > -1
+            )
         print(angc)
 
         if abs(angc - targang) < angeps and skip == 0:
@@ -295,7 +308,7 @@ def find_tangent_bif(
 
         if stabs != stabs_prev and None not in stabs_prev:
             # if abs(svd.S[-2]) <= 0.5:
-                # if svd.
+            # if svd.
             if skip_changes == 0:
                 tangent = svd.Vh[-2]
                 print(f"BIFURCATING @ X={X} in the direction of {tangent}")
