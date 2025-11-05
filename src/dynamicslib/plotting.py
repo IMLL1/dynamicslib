@@ -8,7 +8,7 @@ import plotly.express as px
 import pandas as pd
 from IPython.display import display, HTML
 import plotly
-
+from base64 import b64encode
 from dash import Dash, dcc, html, Input, Output, callback
 
 from dynamicslib.consts import muEM
@@ -545,6 +545,8 @@ def plotly_display(
                 "Index",
                 id="param-dropdown",
             ),
+            html.Button("Download HTML", id="btn_download_html"),
+            dcc.Download(id="download-html-file")
         ]
     )
 
@@ -571,6 +573,17 @@ def plotly_display(
                 num = int(obj.uid[4:])
                 obj.line.color = colors[num]
         return updated_fig
+
+    @callback(
+        Output("download-html-file", "data"),
+        Input("btn_download_html", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def download_html(n_clicks):
+        if n_clicks:
+            html_content = fig.to_html(full_html=False, include_plotlyjs='cdn')
+            return dcc.send_string(html_content, filename="enter_name.html")
+        
 
     # @callback(
     #     Output("display", "figure", allow_duplicate=True),
