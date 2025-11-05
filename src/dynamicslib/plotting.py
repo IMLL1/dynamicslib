@@ -5,11 +5,21 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.express as px
+import pandas as pd
+from IPython.display import display, HTML
+import plotly
 
 from dash import Dash, dcc, html, Input, Output, callback
 
 from dynamicslib.consts import muEM
 from dynamicslib.common import get_Lpts
+
+plotly.offline.init_notebook_mode()
+display(
+    HTML(
+        '<script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_SVG"></script>'
+    )
+)
 
 
 def matplotlib_family(
@@ -387,7 +397,6 @@ def plotly_display(
     param_names: list,
     colormap: str = "rainbow",
     mu: float = muEM,
-    spacing=20,
     figsize: tuple[float, float] = (900, 600),
 ):
     data = np.array(data)
@@ -457,7 +466,6 @@ def plotly_display(
     )
 
     fig = go.Figure(data=[cbar_dummy, *curves3d, *projs])
-
 
     Lpoints = get_Lpts(mu=mu)
     fig.add_trace(
@@ -605,6 +613,75 @@ def plotly_display(
     #     return updated_fig
 
     app.run(debug=False, use_reloader=False)
+
+
+def broucke_diagram(df: pd.DataFrame):
+    n = len(df)
+    colormap = "rainbow"
+    eig_df = df[[col for col in df.columns if "Eig" in col]]
+    eigs = eig_df.values.astype(np.complex128)
+    alpha = 2-np.sum(eigs, axis=1).real
+    beta = (alpha**2 - (np.sum(eigs**2, axis=1).real - 2)) / 2
+    alphrange = np.max(np.abs(alpha))
+    x = np.linspace(-((alphrange) ** (1 / 3)), (alphrange) ** (1 / 3), 1000, False) ** 3
+    lines_cross = np.array([-2 * x - 2, 2 * x - 2, x + 1, 2 + x - x, x**2 / 4 + 2])
+    lines_names = [
+        "Tangent",
+        "Period-Double",
+        "Period-Triple",
+        "Period-Quadrouple",
+        "Hopf",
+    ]
+    eqns = [r"-2\alpha - 2", r"2\alpha - 2", r"\alpha+1", r"2", r"\frac{\alpha^2}{4}+2"]
+
+    c = px.colors.sample_colorscale(colormap, n)
+    curve = go.Scatter(
+        x=alpha,
+        y=beta,
+        name="Family",
+        text=[f"Index: {ind}" for ind in df.index],
+        hoverinfo="text",
+        mode="lines+markers",
+        hoverlabel=dict(namelength=-1, bgcolor="black", font_color="white"),
+        marker=dict(color=c, size=4),
+        line=dict(color="white", width=0.75),
+    )
+
+    guides = [
+        go.Scatter(
+            x=x,
+            y=y,
+            name=rf"{name}: $\beta={eqn}$",
+            hoverinfo="text",
+            text=name,
+            mode="lines",
+            hoverlabel=dict(namelength=-1, bgcolor="black", font_color="white"),
+            line=dict(width=1),
+        )
+        for y, name, eqn in zip(lines_cross, lines_names, eqns)
+    ]
+
+    fig = go.Figure(data=[*guides, curve])
+
+    fig.update_layout(
+        title=dict(
+            text="Broucke Diagram", x=0.5, xanchor="center", yanchor="bottom", y=0.95
+        ),
+        xaxis_range=[-5, 5],
+        yaxis_range=[-5, 5],
+        width=1000,
+        height=800,
+        template="plotly_dark",
+        showlegend=True,
+        margin=dict(l=10, r=30, b=10, t=50),
+        plot_bgcolor="#000000",
+        paper_bgcolor="#000000",
+        xaxis=dict(title=r"$\alpha$"),
+        yaxis=dict(title=r"$\beta$"),
+    )
+    fig.update_xaxes(exponentformat="power")
+    fig.update_yaxes(exponentformat="power")
+    fig.show()
 
 
 # def plotly_family_planar(

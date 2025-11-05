@@ -143,120 +143,228 @@ def natural_param_cont(
     return Xs, eig_vals, params
 
 
-def find_per_mult(
-    X0: NDArray,
+def find_bif(
+    X0: NDArray | List,
     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
     dir0: NDArray | List,
-    s0: float = 1e-3,
-    tol: float = 1e-10,
-    N: int = 3,
-    angeps=1e-4,
+    s0: float = 1e-2,
+    targ_tol: float = 1e-10,
     skip: int = 0,
+    bisect_tol: float = 1e-5,
+    bif_type: str | None = "tangent",
+    bisect_func: Callable[[float, float], float] | None = None,
+    debug: bool = False,
 ) -> Tuple[NDArray, NDArray]:
-    """Find find period multiplying bifurcation with period N
+    """Find bifurcation using Broucke stability
 
     Args:
         X0 (NDArray): initial control variables
         f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
-        dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
-        s0 (float, optional): step size. Defaults to 1e-3.
-        tol (float, optional): tolerance for convergence. Defaults to 1e-10.
-        N (int): multiplier
-        angeps (float, optional): How exact does the argument need to be?
+        dir0 (NDArray | List): signed initial stepoff direction.
+        s0 (float, optional): initial step size. Defaults to 1e-2.
+        targ_tol (float, optional): tolerance for targetter convergence. Defaults to 1e-10.
+        skip (int, optional): number of crossings to skip. Defaults to 0.
+        bisect_tol (float, optional): Tolerance for bisection algorithm. Defaults to 1e-5.
+        bif_type (str, optional): bif_type of bifurcation to detect ("tangent", "period double", "period triple", "period quadrouple", "hopf", "modified hopf")
+        bisect_func: Callable that takes alpha, beta and returns a float to bisect
 
     Returns:
         NDArray: Bifurcation control variables, tangent vector
     """
-    assert N > 1
-    target_eigval = np.cos(2 * np.pi / N) + 1j * np.sin(2 * np.pi / N)
+    if bisect_func is None and bif_type is None:
+        raise ValueError("Must give either a function to bisect or a bifurcation type")
+    if bisect_func is not None and bif_type is not None:
+        raise ValueError(
+            "Must give EITHER a function to bisect or a bifurcation type (not both)"
+        )
 
+    if bisect_func is None:
+        match bif_type.lower():
+            case "tangent":
+                bisect_func = lambda alpha, beta: beta + 2 + 2 * alpha
+            case "period double":
+                bisect_func = lambda alpha, beta: beta + 2 - 2 * alpha
+            case "period triple":
+                bisect_func = lambda alpha, beta: beta - alpha - 1
+            case "period quadroupe":
+                bisect_func = lambda alpha, beta: beta - 2
+            case "hopf":
+                bisect_func = lambda alpha, beta: (
+                    beta - alpha**2 / 4 - 2 if -4 <= alpha <= 4 else np.nan
+                )
+            case "modified hopf":
+                bisect_func = lambda alpha, beta: (
+                    np.nan if -4 <= alpha <= 4 else beta - alpha**2 / 4 - 2
+                )
+            case _:
+                raise NotImplementedError("womp womp")
+
+    X = np.array(X0) if isinstance(X0, list) else X0.copy()
+    tangent_prev = np.array(dir0) if isinstance(dir0, list) else dir0.copy()
     s = s0
 
-    X = X0.copy()
-    dir0 = np.array(dir0)
-    tangent_prev = dir0
-    targang = 2 * np.pi / N
-
     _, dF, stm = f_df_stm_func(X0)
-    # svd = np.linalg.svd(dF)
-    tangent = tangent_prev
+    svd = np.linalg.svd(dF)
+    tangent = svd.Vh[-1]
 
     Xs = [X0]
 
-    # eigs_prev =
-    eigs = [np.linalg.eigvals(stm)]
-    # justSwitched = False
+    alpha = 2 - np.trace(stm)
+    beta = 1 / 2 * (alpha**2 + 2 - np.trace(stm @ stm))
+    func_vals = [bisect_func(alpha, beta)]
 
     while True:
         if np.dot(tangent, tangent_prev) < 0:
             tangent *= -1
-        # if justSwitched:
-        #     tangent *= -1
-        #     justSwitched = False
-        X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol)
+        X, dF, stm = dc_arclen(
+            X, np.sign(s) * tangent, f_df_stm_func, abs(s), targ_tol, modified=True
+        )
 
         Xs.append(X)
-
-        # check the argument
-        eigs.append(np.linalg.eigvals(stm))
-
-        argc = np.argmin(np.abs(eigs[-1] - target_eigval))
-        valc = eigs[-1][argc]
-        angc = np.angle(valc)
-        argp = np.argmin(np.abs(eigs[-2] - target_eigval))
-        valp = eigs[-2][argp]
-        angp = np.angle(valp)
-
-        if N > 2:
-            # whether weve crossed and are unit magnitude
-            cross1 = (
-                (angc < targang) and (angp > targang) and abs(abs(valc) - 1) < angeps
-            )
-            cross2 = (
-                (angc > targang) and (angp < targang) and abs(abs(valc) - 1) < angeps
-            )
-        else:  # untested
-            # whether we crossed x=-1. If we were getting closer but now we're getting further. In other words, if distance is increasing?
-            
-            # current and previous distance to -1
-            distc = np.abs(valc + 1)
-            distp = np.abs(valp + 1)
-            
-            cross1 = (
-                np.real(valc) < -1
-                and abs(np.imag(valc)) < angeps
-                and np.real(valp) > -1
-            )
-            cross2 = (
-                np.real(valp) < -1
-                and abs(np.imag(valp)) < angeps
-                and np.real(valc) > -1
-            )
-        print(angc)
-
-        if abs(angc - targang) < angeps and skip == 0:
-            break
-        if cross1 or cross2:
-            if skip > 0:
-                skip -= 1
-            else:
-                Xs = [X]
-                eigs = [eigs[-1]]
-                tangent *= -1
-                s /= 10
-
         tangent_prev = tangent
 
+        # tangent = null_space(dF)
         svd = np.linalg.svd(dF)
         tangent = svd.Vh[-1]
-    X[-1] *= N
-    _, dF, _ = f_df_stm_func(X)
-    svd = np.linalg.svd(dF)
-    tangent = svd.Vh[-2]
-    return X, tangent
+
+        alpha = 2 - np.trace(stm)
+        beta = 1 / 2 * (alpha**2 + 2 - np.trace(stm @ stm))
+
+        func_vals.append(bisect_func(alpha, beta))
+
+        if np.sign(func_vals[-1]) != np.sign(func_vals[-2]):
+            if skip == 0:
+                if abs(func_vals[-1]) < bisect_tol:
+                    tangent = svd.Vh[-2]
+                    print(f"BIFURCATING @ X={X} in the direction of {tangent}")
+                    return X, tangent
+                else:  # search backward
+                    s /= -5
+            else:
+                skip -= 1
+                
+        if debug:
+            print(func_vals[-1], func_vals[-2], s)
 
 
-def find_tangent_bif(
+# def find_per_mult(
+#     X0: NDArray,
+#     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
+#     dir0: NDArray | List,
+#     s0: float = 1e-3,
+#     tol: float = 1e-10,
+#     N: int = 3,
+#     angeps=1e-4,
+#     skip: int = 0,
+# ) -> Tuple[NDArray, NDArray]:
+#     """Find find period multiplying bifurcation with period N
+
+#     Args:
+#         X0 (NDArray): initial control variables
+#         f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
+#         dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
+#         s0 (float, optional): step size. Defaults to 1e-3.
+#         tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+#         N (int): multiplier
+#         angeps (float, optional): How exact does the argument need to be?
+
+#     Returns:
+#         NDArray: Bifurcation control variables, tangent vector
+#     """
+#     assert N > 1
+#     target_eigval = np.cos(2 * np.pi / N) + 1j * np.sin(2 * np.pi / N)
+
+#     s = s0
+
+#     X = X0.copy()
+#     dir0 = np.array(dir0)
+#     tangent_prev = dir0
+#     targang = 2 * np.pi / N
+
+#     _, dF, stm = f_df_stm_func(X0)
+#     # svd = np.linalg.svd(dF)
+#     tangent = tangent_prev.copy()
+
+#     Xs = [X0]
+
+#     # eigs_prev =
+#     eigs = [np.linalg.eigvals(stm)]
+#     # justSwitched = False
+
+#     while True:
+#         if np.dot(tangent, tangent_prev) < 0:
+#             tangent *= -1
+#         # if justSwitched:
+#         #     tangent *= -1
+#         #     justSwitched = False
+
+#         Xs.append(X)
+
+#         # check the argument
+#         eigs.append(np.linalg.eigvals(stm))
+#         print(eigs[-1])
+
+#         argc = np.argmin(np.abs(eigs[-1] - target_eigval))
+#         valc = eigs[-1][argc]
+#         angc = np.angle(valc)
+#         argp = np.argmin(np.abs(eigs[-2] - target_eigval))
+#         valp = eigs[-2][argp]
+#         angp = np.angle(valp)
+
+#         if N > 2:
+#             # whether weve crossed and are unit magnitude
+#             cross1 = (
+#                 (angc < targang) and (angp > targang) and abs(abs(valc) - 1) < angeps
+#             ) or abs(angc - targang) < angeps
+#             cross2 = (
+#                 (angc > targang) and (angp < targang) and abs(abs(valc) - 1) < angeps
+#             ) or abs(angc - targang) < angeps
+#         else:  # untested
+#             # whether we crossed x=-1. If we were getting closer but now we're getting further. In other words, if distance is increasing?
+
+#             # current and previous distance to -1
+#             distc = np.abs(valc + 1)
+#             distp = np.abs(valp + 1)
+
+#             cross1 = (
+#                 np.real(valc) < -1
+#                 and abs(np.imag(valc)) < angeps
+#                 and np.real(valp) > -1
+#             )
+#             cross2 = (
+#                 np.real(valp) < -1
+#                 and abs(np.imag(valp)) < angeps
+#                 and np.real(valc) > -1
+#             )
+#         # print(np.angle(eigs[-1]))
+#         # print(np.angle(eigs[-1]))
+
+#         if abs(angc - targang) < angeps and skip == 0:
+#             break
+#         if cross1 or cross2:
+#             if skip > 0:
+#                 skip -= 1
+#             else:
+#                 Xs = [X]
+#                 eigs = [eigs[-1]]
+#                 tangent *= -1
+#                 s /= 10
+
+#         tangent_prev = tangent
+
+#         svd = np.linalg.svd(dF)
+#         tangent = svd.Vh[-1]
+
+#         X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol)
+
+#     X[-1] *= N
+#     _, dF, _ = f_df_stm_func(X)
+#     svd = np.linalg.svd(dF)
+#     tangent = svd.Vh[-2]
+#     return X, tangent
+
+
+def find_any_bif(
     X0: NDArray,
     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
     dir0: NDArray | List,
