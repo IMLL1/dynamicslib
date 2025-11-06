@@ -405,7 +405,7 @@ def plotly_display(
 
     is2d = (
         "Initial z" not in param_names and "Initial vz" not in param_names
-    ) or np.max(np.abs(xyzs[-1])) < 1e-10
+    ) or max([np.max(np.abs(xyz[-1])) for xyz in xyzs]) < 1e-10
 
     datatr = data.T
 
