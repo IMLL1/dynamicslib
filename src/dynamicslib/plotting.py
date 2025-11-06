@@ -131,7 +131,7 @@ def plotly_curve(x, y, z, name="", opacity=1.0, uid="", **kwargs):
     )
 
 
-def plotly_curve_2d(x, y, name="", opacity=1.0, **kwargs):
+def plotly_curve_2d(x, y, name="", opacity=1.0, uid="", **kwargs):
     return go.Scatter(
         x=x,
         y=y,
@@ -393,14 +393,20 @@ def plotly_family(
 
 def plotly_display(
     xyzs: List,
-    data: List | NDArray,
-    param_names: list,
+    full_dataframe: pd.DataFrame,
     colormap: str = "rainbow",
     mu: float = muEM,
     figsize: tuple[float, float] = (900, 600),
 ):
-    data = np.array(data)
-    data = data.astype(np.float32)
+    full_dataframe = full_dataframe.reset_index()
+    df = full_dataframe[[col for col in full_dataframe.columns if "Eig" not in col]]
+    data = df.values.astype(np.float32)
+    param_names = list(df.columns)
+
+    is2d = (
+        "Initial z" not in param_names and "Initial vz" not in param_names
+    ) or np.max(np.abs(xyzs[-1])) < 1e-10
+
     datatr = data.T
 
     assert len(xyzs) == len(data)
@@ -423,7 +429,7 @@ def plotly_display(
     projY = ctrY - rng / 2
     projZ = ctrZ - rng / 2
     projs = []
-    curves3d = []
+    curves = []
 
     colornums = cdata - min(cdata)
     colornums /= max(colornums)
@@ -433,63 +439,99 @@ def plotly_display(
         lbl = make_label(data[i], param_names)
 
         c = colors[i]
-        curves3d.append(
-            plotly_curve(x, y, z, lbl, color=c, width=5, opacity=1, uid=f"traj{i}")
-        )
-        projs.append(
-            plotly_curve(
-                x * 0 + projX, y, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+        if not is2d:
+            curves.append(plotly_curve(x, y, z, lbl, color=c, width=5, uid=f"traj{i}"))
+            projs.append(
+                plotly_curve(
+                    x * 0 + projX, y, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                )
             )
-        )
-        projs.append(
-            plotly_curve(
-                x, 0 * y + projY, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+            projs.append(
+                plotly_curve(
+                    x, 0 * y + projY, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                )
             )
-        )
-        projs.append(
-            plotly_curve(
-                x, y, 0 * z + projZ, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+            projs.append(
+                plotly_curve(
+                    x, y, 0 * z + projZ, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                )
             )
+        else:
+            curves.append(plotly_curve_2d(x, y, lbl, color=c, width=5, uid=f"traj{i}"))
+
+    if is2d:
+        cbar_dummy = go.Scatter(
+            x=[np.nan] * n,
+            y=[np.nan] * n,
+            mode="markers",
+            name="dummy",
+            marker=dict(
+                color=cdata,
+                colorscale=colormap,
+                colorbar=dict(title="Index", thickness=12),
+            ),
+        )
+    else:
+        cbar_dummy = go.Scatter3d(
+            x=[np.nan] * n,
+            y=[np.nan] * n,
+            z=[np.nan] * n,
+            mode="markers",
+            name="dummy",
+            marker=dict(
+                color=cdata,
+                colorscale=colormap,
+                colorbar=dict(title="Index", thickness=12),
+            ),
         )
 
-    cbar_dummy = go.Scatter3d(
-        x=[np.nan] * n,
-        y=[np.nan] * n,
-        z=[np.nan] * n,
-        mode="markers",
-        name="dummy",
-        marker=dict(
-            color=cdata,
-            colorscale=colormap,
-            colorbar=dict(title="Index", thickness=12),
-        ),
-    )
-
-    fig = go.Figure(data=[cbar_dummy, *curves3d, *projs])
+    fig = go.Figure(data=[cbar_dummy, *curves, *projs])
 
     Lpoints = get_Lpts(mu=mu)
-    fig.add_trace(
-        go.Scatter3d(
-            x=Lpoints[0],
-            y=Lpoints[1],
-            z=0 * Lpoints[0],
-            text=[f"L{lp+1}" for lp in range(5)],
-            hoverinfo="x+y+text",
-            mode="markers",
-            marker=dict(color="magenta", size=4),
+    if is2d:
+        fig.add_trace(
+            go.Scatter(
+                x=Lpoints[0],
+                y=Lpoints[1],
+                text=[f"L{lp+1}" for lp in range(5)],
+                hoverinfo="x+y+text",
+                mode="markers",
+                marker=dict(color="magenta", size=4),
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter3d(
-            x=[-mu, 1 - mu],
-            y=[0, 0],
-            z=[0, 0],
-            mode="markers",
-            text=["P1", "P2"],
-            hoverinfo="x+y+text",
-            marker=dict(color="cyan"),
+        fig.add_trace(
+            go.Scatter(
+                x=[-mu, 1 - mu],
+                y=[0, 0],
+                mode="markers",
+                text=["P1", "P2"],
+                hoverinfo="x+y+text",
+                marker=dict(color="cyan"),
+            )
         )
-    )
+    else:
+        fig.add_trace(
+            go.Scatter3d(
+                x=Lpoints[0],
+                y=Lpoints[1],
+                z=0 * Lpoints[0],
+                text=[f"L{lp+1}" for lp in range(5)],
+                hoverinfo="x+y+text",
+                mode="markers",
+                marker=dict(color="magenta", size=4),
+            )
+        )
+        fig.add_trace(
+            go.Scatter3d(
+                x=[-mu, 1 - mu],
+                y=[0, 0],
+                z=[0, 0],
+                mode="markers",
+                text=["P1", "P2"],
+                hoverinfo="x+y+text",
+                marker=dict(color="cyan"),
+            )
+        )
 
     fig.update_layout(
         width=figsize[0],
@@ -500,30 +542,48 @@ def plotly_display(
         plot_bgcolor="#000000",
         paper_bgcolor="#000000",
     )
-    fig.update_scenes(
-        xaxis=dict(
-            title="x [nd]",
-            showbackground=False,
-            showgrid=True,
-            zeroline=False,
-            range=[ctrX - rng / 2, ctrX + rng / 2],
-        ),
-        yaxis=dict(
-            title="y [nd]",
-            showbackground=False,
-            showgrid=True,
-            zeroline=False,
-            range=[ctrY - rng / 2, ctrY + rng / 2],
-        ),
-        zaxis=dict(
-            title="z [nd]",
-            showbackground=False,
-            showgrid=True,
-            zeroline=False,
-            range=[ctrZ - rng / 2, ctrZ + rng / 2],
-        ),
-        aspectmode="cube",
-    )
+    if is2d:
+        fig.update_layout(
+            xaxis=dict(
+                title="x [nd]",
+                range=[ctrX - rng / 2, ctrX + rng / 2],
+            ),
+            yaxis=dict(
+                title="y [nd]",
+                range=[ctrY - rng / 2, ctrY + rng / 2],
+            ),
+        )
+        fig.update_yaxes(scaleanchor="x", scaleratio=1, exponentformat="power")
+        fig.update_xaxes(exponentformat="power")
+
+    else:
+        fig.update_scenes(
+            xaxis=dict(
+                title="x [nd]",
+                showbackground=False,
+                showgrid=True,
+                zeroline=False,
+                range=[ctrX - rng / 2, ctrX + rng / 2],
+                exponentformat="power",
+            ),
+            yaxis=dict(
+                title="y [nd]",
+                showbackground=False,
+                showgrid=True,
+                zeroline=False,
+                range=[ctrY - rng / 2, ctrY + rng / 2],
+                exponentformat="power",
+            ),
+            zaxis=dict(
+                title="z [nd]",
+                showbackground=False,
+                showgrid=True,
+                zeroline=False,
+                range=[ctrZ - rng / 2, ctrZ + rng / 2],
+                exponentformat="power",
+            ),
+            aspectmode="cube",
+        )
 
     # INTERACTIVITY
     app = Dash()
@@ -546,7 +606,7 @@ def plotly_display(
                 id="param-dropdown",
             ),
             html.Button("Download HTML", id="btn_download_html"),
-            dcc.Download(id="download-html-file")
+            dcc.Download(id="download-html-file"),
         ]
     )
 
@@ -577,13 +637,12 @@ def plotly_display(
     @callback(
         Output("download-html-file", "data"),
         Input("btn_download_html", "n_clicks"),
-        prevent_initial_call=True
+        prevent_initial_call=True,
     )
     def download_html(n_clicks):
         if n_clicks:
-            html_content = fig.to_html(full_html=False, include_plotlyjs='cdn')
+            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
             return dcc.send_string(html_content, filename="enter_name.html")
-        
 
     # @callback(
     #     Output("display", "figure", allow_duplicate=True),
@@ -633,7 +692,7 @@ def broucke_diagram(df: pd.DataFrame):
     colormap = "rainbow"
     eig_df = df[[col for col in df.columns if "Eig" in col]]
     eigs = eig_df.values.astype(np.complex128)
-    alpha = 2-np.sum(eigs, axis=1).real
+    alpha = 2 - np.sum(eigs, axis=1).real
     beta = (alpha**2 - (np.sum(eigs**2, axis=1).real - 2)) / 2
     alphrange = np.max(np.abs(alpha))
     x = np.linspace(-((alphrange) ** (1 / 3)), (alphrange) ** (1 / 3), 1000, False) ** 3

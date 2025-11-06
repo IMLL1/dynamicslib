@@ -186,7 +186,7 @@ def find_bif(
                 bisect_func = lambda alpha, beta: beta + 2 - 2 * alpha
             case "period triple":
                 bisect_func = lambda alpha, beta: beta - alpha - 1
-            case "period quadroupe":
+            case "period quadrouple":
                 bisect_func = lambda alpha, beta: beta - 2
             case "hopf":
                 bisect_func = lambda alpha, beta: (
