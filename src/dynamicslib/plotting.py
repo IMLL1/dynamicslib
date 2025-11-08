@@ -403,9 +403,9 @@ def plotly_display(
     data = df.values.astype(np.float32)
     param_names = list(df.columns)
 
-    is2d = (
-        "Initial z" not in param_names and "Initial vz" not in param_names
-    ) or max([np.max(np.abs(xyz[-1])) for xyz in xyzs]) < 1e-10
+    is2d = ("Initial z" not in param_names and "Initial vz" not in param_names) or max(
+        [np.max(np.abs(xyz[-1])) for xyz in xyzs]
+    ) < 1e-10
 
     datatr = data.T
 
@@ -590,16 +590,6 @@ def plotly_display(
     app.layout = html.Div(
         [
             dcc.Graph(figure=fig, id="display"),
-            # dcc.Input(type="number", value=5, id="skip-type"),
-            # dcc.RangeSlider(
-            #     0,
-            #     n,
-            #     marks=None,
-            #     value=[0, n],
-            #     updatemode="drag",
-            #     tooltip={"placement": "bottom", "always_visible": True},
-            #     id="disp-slider",
-            # ),
             dcc.Dropdown(
                 ["Index", "Period", "Jacobi Constant", "Stability Index"],
                 "Index",
@@ -616,9 +606,7 @@ def plotly_display(
         prevent_initial_call=True,
     )
     def update_colorby(value):
-        # colorbar_title_text='My Color Scale'
         updated_fig = go.Figure(fig)
-        # updated_fig.update_coloraxes(colorbar_title_text=value)
         cdata = datatr[param_names.index(value)]  # color data
         colornums = cdata - min(cdata)
         colornums /= max(colornums)
@@ -643,46 +631,6 @@ def plotly_display(
         if n_clicks:
             html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
             return dcc.send_string(html_content, filename="enter_name.html")
-
-    # @callback(
-    #     Output("display", "figure", allow_duplicate=True),
-    #     Input("disp-slider", "value"),
-    #     prevent_initial_call=True,
-    # )
-    # def update_vis_range(value):
-    #     # transformed_value = [transform_value(v) for v in value]
-    #     # return "Linear Value: {}, Log Value: [{:0.2f}, {:0.2f}]".format(
-    #     #     str(value), transformed_value[0], transformed_value[1]
-    #     # )
-    #     updated_fig = go.Figure(fig)
-    #     # updated_fig.update_coloraxes(colorbar_title_text=value)
-
-    #     for obj in fig.data:
-    #         if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
-    #             num = int(obj.uid[4:])
-    #             print(value)
-    #             # obj.visible = num >= value[0] and num < value[1]
-    #             # print(num)
-    #             # obj.visible = (num//4 == 0)
-    #     return updated_fig
-
-    # @callback(
-    #     Output("display", "figure", allow_duplicate=True),
-    #     Input("skip-type", "value"),
-    #     prevent_initial_call=True,
-    # )
-    # def update_skip(value):
-
-    #     updated_fig = go.Figure(fig)
-
-    #     if value is not None:
-    #         skip = int(value)  # Explicitly cast to integer
-    #         for obj in fig.data:
-    #             if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
-    #                 num = int(obj.uid[4:])
-    #                 obj.visible = num % skip == 0
-    #     # return "Enter a number above."
-    #     return updated_fig
 
     app.run(debug=False, use_reloader=False)
 

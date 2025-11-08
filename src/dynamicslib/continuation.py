@@ -43,6 +43,7 @@ def arclen_cont(
 
     # if the direction we asked for is normal to the computed tangent, use the second-most tangent vector
     if np.abs(np.dot(tangent, dir0)) < 1e-5:
+        print("NEW!")
         tangent = svd.Vh[-2]
 
     Xs = [X0]
@@ -60,6 +61,10 @@ def arclen_cont(
             X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol, modified)
         except np.linalg.LinAlgError as err:
             print(f"Linear algebra error encountered: {err}")
+            print("returning what's been calculated so far")
+            break
+        except RuntimeError as err:
+            print(f"Runtime error encountered: {err}")
             print("returning what's been calculated so far")
             break
 
@@ -199,6 +204,10 @@ def find_bif(
             case _:
                 raise NotImplementedError("womp womp")
 
+        # NOTE: if period-multiplying and L is the non-unity non-unit-circle, then
+        # $$\alpha=2\left(\lambda\cos\theta+1+\frac{\cos\theta}{\lambda})$$
+        # $$\beta=-\lambda-2\cos\theta-\frac{1}{\lambda+2}$$
+
     X = np.array(X0) if isinstance(X0, list) else X0.copy()
     tangent_prev = np.array(dir0) if isinstance(dir0, list) else dir0.copy()
     s = s0
@@ -242,7 +251,7 @@ def find_bif(
                     s /= -5
             else:
                 skip -= 1
-                
+
         if debug:
             print(func_vals[-1], func_vals[-2], s)
 
@@ -427,3 +436,81 @@ def find_any_bif(
             #     pass
 
         stabs_prev = stabs
+
+
+def cont_from_bif(
+    X0: NDArray,
+    f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
+    dir0: NDArray | List,
+    s0: float = 1e-3,
+    tol: float = 1e-10,
+    max_iter: int = 10,
+    multiplier: float = 2.0,
+    wait: int = 10,
+) -> Tuple[List, List]:
+    """Pseudoarclength continuation wrapper. The modified algorithm has a full step size of s, rather than projected step size.
+
+    Args:
+        X0 (NDArray): initial control variables
+        f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
+        dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
+        s (float, optional): step size. Defaults to 1e-3.
+        S (float, optional): terminate at this arclength. Defaults to 0.5.
+        tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+        stop_callback (Callable): Function with signature f(X, current_eigvals, previous_eigvals, *kwargs) which returns True when continuation should terminate. If None, will only terminate when the final arclength is reached. Defaults to None.
+        stop_kwags (dict, optional): keyword arguments to stop_calback. Defaults to {}.
+        modified (bool, optional): Whether to use modified algorithm. Defaults to False.
+
+    Returns:
+        Tuple[List, List]: all Xs, all eigenvalues
+    """
+
+    X = X0.copy()
+    tangent_prev = dir0.copy()
+    tangent = dir0.copy()
+
+    _, dF, stm = f_df_stm_func(X0)
+    svd = np.linalg.svd(dF)
+    # tangent = svd.Vh[-1]
+
+    Xs = [X0]
+    eig_vals = [np.linalg.eigvals(stm)]
+
+    bar = tqdm(total=0)
+    arclen = 0.0
+
+    s = s0
+    lastInc = 0
+
+    # ensure that the stopping condition hasnt been satisfied
+    while True:
+        if arclen - lastInc > wait * s:
+            s *= multiplier
+        # if we flip flop, undo the flipflop
+        if np.dot(tangent, tangent_prev) < 0:
+            tangent *= -1
+        try:
+            X, dF, stm = dc_arclen(
+                X, tangent, f_df_stm_func, s, tol, True, max_iter=max_iter
+            )
+        except Exception as err:
+            print(f"Runtime error encountered: {err}")
+            print("returning what's been calculated so far")
+            break
+
+        Xs.append(X)
+
+        eig_vals.append(np.linalg.eigvals(stm))
+        dS = s
+
+        tangent_prev = tangent
+
+        svd = np.linalg.svd(dF)
+        tangent = svd.Vh[-1]
+
+        arclen += dS
+        bar.update(float(dS))
+
+    bar.close()
+
+    return Xs, eig_vals
