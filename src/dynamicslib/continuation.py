@@ -10,7 +10,9 @@ def arclen_cont(
     tol: float = 1e-10,
     stop_callback: Callable | None = None,  # possibly change to also take dF?
     stop_kwags: dict = {},
-    modified: bool = False,
+    modified: bool = True,
+    max_iter: None | int = None,
+    use_exact_tangent:bool=False,
 ) -> Tuple[List, List]:
     """Pseudoarclength continuation wrapper. The modified algorithm has a full step size of s, rather than projected step size.
 
@@ -39,12 +41,12 @@ def arclen_cont(
 
     _, dF, stm = f_df_stm_func(X0)
     svd = np.linalg.svd(dF)
-    tangent = svd.Vh[-1]
+    tangent = dir0.copy() if use_exact_tangent else svd.Vh[-1]
 
-    # if the direction we asked for is normal to the computed tangent, use the second-most tangent vector
-    if np.abs(np.dot(tangent, dir0)) < 1e-5:
-        print("NEW!")
-        tangent = svd.Vh[-2]
+    # # if the direction we asked for is normal to the computed tangent, use the second-most tangent vector
+    # if np.abs(np.dot(tangent, dir0)) < 1e-5:
+    #     print("RESETTING")
+    #     tangent = svd.Vh[-1]
 
     Xs = [X0]
     eig_vals = [np.linalg.eigvals(stm)]
@@ -58,7 +60,9 @@ def arclen_cont(
         if np.dot(tangent, tangent_prev) < 0:
             tangent *= -1
         try:
-            X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol, modified)
+            X, dF, stm = dc_arclen(
+                X, tangent, f_df_stm_func, s, tol, modified, max_iter
+            )
         except np.linalg.LinAlgError as err:
             print(f"Linear algebra error encountered: {err}")
             print("returning what's been calculated so far")
@@ -438,28 +442,27 @@ def find_any_bif(
         stabs_prev = stabs
 
 
-def cont_from_bif(
+def arclen_to_fail(
     X0: NDArray,
     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
     dir0: NDArray | List,
     s0: float = 1e-3,
     tol: float = 1e-10,
     max_iter: int = 10,
-    multiplier: float = 2.0,
-    wait: int = 10,
+    multiplier: float = 1.01,
+    wait: int = 100,
 ) -> Tuple[List, List]:
-    """Pseudoarclength continuation wrapper. The modified algorithm has a full step size of s, rather than projected step size.
+    """Arclength continuation until fail.
 
     Args:
         X0 (NDArray): initial control variables
         f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
         dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
-        s (float, optional): step size. Defaults to 1e-3.
-        S (float, optional): terminate at this arclength. Defaults to 0.5.
+        s0 (float, optional): initial step size. Defaults to 1e-3.
         tol (float, optional): tolerance for convergence. Defaults to 1e-10.
-        stop_callback (Callable): Function with signature f(X, current_eigvals, previous_eigvals, *kwargs) which returns True when continuation should terminate. If None, will only terminate when the final arclength is reached. Defaults to None.
-        stop_kwags (dict, optional): keyword arguments to stop_calback. Defaults to {}.
-        modified (bool, optional): Whether to use modified algorithm. Defaults to False.
+        max_iter (int): number of iterations to fail at
+        multiplier (float): multiply step size by this
+        wait (int): after this many steps
 
     Returns:
         Tuple[List, List]: all Xs, all eigenvalues
@@ -471,7 +474,6 @@ def cont_from_bif(
 
     _, dF, stm = f_df_stm_func(X0)
     svd = np.linalg.svd(dF)
-    # tangent = svd.Vh[-1]
 
     Xs = [X0]
     eig_vals = [np.linalg.eigvals(stm)]
