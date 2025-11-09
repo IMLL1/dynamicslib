@@ -12,7 +12,7 @@ def arclen_cont(
     stop_kwags: dict = {},
     modified: bool = True,
     max_iter: None | int = None,
-    use_exact_tangent:bool=False,
+    use_exact_tangent: bool = False,
 ) -> Tuple[List, List]:
     """Pseudoarclength continuation wrapper. The modified algorithm has a full step size of s, rather than projected step size.
 
@@ -75,7 +75,7 @@ def arclen_cont(
         Xs.append(X)
 
         eig_vals.append(np.linalg.eigvals(stm))
-        dS = np.linalg.norm(Xs[-1] - Xs[-2])
+        dS = s if modified else np.linalg.norm(Xs[-1] - Xs[-2])
 
         tangent_prev = tangent
 
@@ -233,7 +233,7 @@ def find_bif(
             X, np.sign(s) * tangent, f_df_stm_func, abs(s), targ_tol, modified=True
         )
 
-        Xs.append(X)
+        Xs.append(X.copy())
         tangent_prev = tangent
 
         # tangent = null_space(dF)
@@ -247,7 +247,7 @@ def find_bif(
 
         if np.sign(func_vals[-1]) != np.sign(func_vals[-2]):
             if skip == 0:
-                if abs(func_vals[-1]) < bisect_tol:
+                if abs(func_vals[-1]) < bisect_tol or abs(s) < bisect_tol:
                     tangent = svd.Vh[-2]
                     print(f"BIFURCATING @ X={X} in the direction of {tangent}")
                     return X, tangent

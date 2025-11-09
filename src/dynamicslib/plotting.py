@@ -397,6 +397,7 @@ def plotly_display(
     colormap: str = "rainbow",
     mu: float = muEM,
     figsize: tuple[float, float] = (900, 600),
+    port=8050,
 ):
     full_dataframe = full_dataframe.reset_index()
     df = full_dataframe[[col for col in full_dataframe.columns if "Eig" not in col]]
@@ -587,29 +588,30 @@ def plotly_display(
 
     # INTERACTIVITY IN HTML
 
-    argshide = {"visible": [True, *[True] * n, *[False] * (3 * n), True, True]}
-    argsshow = {"visible": [True, *[True] * (4 * n + 2)]}
-    fig.update_layout(
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="right",
-                x=0.1,
-                y=1,
-                xanchor="left",
-                yanchor="top",
-                showactive=False,
-                buttons=[
-                    dict(
-                        label="Show<br>Projections", method="restyle", args=[argsshow]
-                    ),
-                    dict(
-                        label="Hide<br>Projections", method="restyle", args=[argshide]
-                    ),
-                ],
-            ),
-        ]
-    )
+    if not is2d:
+        argshide = {"visible": [True, *[True] * n, *[False] * (3 * n), True, True]}
+        argsshow = {"visible": [True, *[True] * (4 * n + 2)]}
+        fig.update_layout(
+            updatemenus=[
+                dict(
+                    type="buttons",
+                    direction="right",
+                    x=0.1,
+                    y=1,
+                    xanchor="left",
+                    yanchor="top",
+                    showactive=False,
+                    buttons=[
+                        dict(
+                            label="Show<br>Projections", method="restyle", args=[argsshow]
+                        ),
+                        dict(
+                            label="Hide<br>Projections", method="restyle", args=[argshide]
+                        ),
+                    ],
+                ),
+            ]
+        )
 
     # INTERACTIVITY
     app = Dash()
@@ -658,7 +660,7 @@ def plotly_display(
             html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
             return dcc.send_string(html_content, filename="enter_name.html")
 
-    app.run(debug=False, use_reloader=False)
+    app.run(debug=False, use_reloader=False, port=port)
 
 
 def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
