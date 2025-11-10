@@ -298,7 +298,7 @@ def dop853(
     t0, tf = t_span
     t = t0
     xs = expand_dims(x0, axis=0)
-    fs = expand_dims(func(t0, x0), axis=0)
+    fs = expand_dims(func(t0, x0, *args), axis=0)
     ts = array([t0], dtype=float64)
     x = x0
     h = init_step if forward else -init_step
@@ -309,7 +309,7 @@ def dop853(
             h = tf - t
 
         # STEP
-        K[0] = func(t, x)
+        K[0] = func(t, x, *args)
         for sm1 in range(coefs.N_STAGES - 1):
             s = sm1 + 1
             a = coefs.A[s]

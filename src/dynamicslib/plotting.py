@@ -153,6 +153,16 @@ def make_label(data: List | NDArray, param_names: List[str]):
     return "<br>".join(terms)
 
 
+def darken_color(color_str, scale=0.75):
+    vals = [float(st) * scale for st in color_str.rstrip(")").lstrip("rgb(").split(",")]
+    return f"rgb({vals[0]}, {vals[1]}, {vals[2]})"
+
+
+def darken_colors(color_list, scale=0.75):
+    out = tuple([darken_color(string, scale) for string in color_list])
+    return out
+
+
 def plotly_family(
     xyzs: List,
     name: str,
@@ -435,30 +445,34 @@ def plotly_display(
     colornums = cdata - min(cdata)
     colornums /= max(colornums)
     colors = px.colors.sample_colorscale(colormap, colornums)
+    colors_dark = darken_colors(colors, 0.5)
     for i, xyzs in enumerate(xyzs):
         x, y, z = xyzs
         lbl = make_label(data[i], param_names)
 
         c = colors[i]
+        cd = colors_dark[i]
         if not is2d:
             curves.append(plotly_curve(x, y, z, lbl, color=c, width=5, uid=f"traj{i}"))
             projs.append(
                 plotly_curve(
-                    x * 0 + projX, y, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                    x * 0 + projX, y, z, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
                 )
             )
             projs.append(
                 plotly_curve(
-                    x, 0 * y + projY, z, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                    x, 0 * y + projY, z, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
                 )
             )
             projs.append(
                 plotly_curve(
-                    x, y, 0 * z + projZ, color=c, width=2, opacity=0.75, uid=f"proj{i}"
+                    x, y, 0 * z + projZ, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
                 )
             )
         else:
-            curves.append(plotly_curve_2d(x, y, lbl, color=c, width=5, uid=f"traj{i}"))
+            curves.append(
+                plotly_curve_2d(x, y, lbl, color=c, width=1.5, uid=f"traj{i}")
+            )
 
     if is2d:
         cbar_dummy = go.Scatter(
@@ -603,10 +617,14 @@ def plotly_display(
                     showactive=False,
                     buttons=[
                         dict(
-                            label="Show<br>Projections", method="restyle", args=[argsshow]
+                            label="Show<br>Projections",
+                            method="restyle",
+                            args=[argsshow],
                         ),
                         dict(
-                            label="Hide<br>Projections", method="restyle", args=[argshide]
+                            label="Hide<br>Projections",
+                            method="restyle",
+                            args=[argshide],
                         ),
                     ],
                 ),
@@ -639,15 +657,15 @@ def plotly_display(
         colornums = cdata - min(cdata)
         colornums /= max(colornums)
         colors = px.colors.sample_colorscale(colormap, colornums)
+        colors_dark = darken_colors(colors, 0.5)
+        for obj in updated_fig.data:
+            if obj.uid is not None and (("traj" in obj.uid) or ("proj" in obj.uid)):
+                num = int(obj.uid[4:])
+                obj.line.color = colors[num] if "traj" in obj.uid else colors_dark[num]
         updated_fig.update_traces(
             marker=dict(color=cdata, colorbar=dict(title=value.replace(" ", "<br>"))),
             selector=dict(name="dummy"),
         )
-
-        for obj in fig.data:
-            if obj.uid is not None and ("traj" in obj.uid or "proj" in obj.uid):
-                num = int(obj.uid[4:])
-                obj.line.color = colors[num]
         return updated_fig
 
     @callback(
@@ -667,6 +685,7 @@ def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
     n = len(df)
     colormap = "rainbow"
     eig_df = df[[col for col in df.columns if "Eig" in col]]
+    jcs = df["Jacobi Constant"]
     eigs = eig_df.values.astype(np.complex128)
     alpha = 2 - np.sum(eigs, axis=1).real
     beta = (alpha**2 - (np.sum(eigs**2, axis=1).real - 2)) / 2
@@ -687,7 +706,7 @@ def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
         x=alpha,
         y=beta,
         name="Family",
-        text=[f"Index: {ind}" for ind in df.index],
+        text=[f"Index: {ind}<br>JC: {jc:.6f}" for ind,jc in zip(df.index, jcs)],
         hoverinfo="text",
         mode="lines+markers",
         hoverlabel=dict(namelength=-1, bgcolor="black", font_color="white"),
