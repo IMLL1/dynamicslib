@@ -455,19 +455,13 @@ def plotly_display(
         if not is2d:
             curves.append(plotly_curve(x, y, z, lbl, color=c, width=5, uid=f"traj{i}"))
             projs.append(
-                plotly_curve(
-                    x * 0 + projX, y, z, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
-                )
+                plotly_curve(x * 0 + projX, y, z, color=cd, width=2, uid=f"proj{i}")
             )
             projs.append(
-                plotly_curve(
-                    x, 0 * y + projY, z, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
-                )
+                plotly_curve(x, 0 * y + projY, z, color=cd, width=2, uid=f"proj{i}")
             )
             projs.append(
-                plotly_curve(
-                    x, y, 0 * z + projZ, color=cd, width=2, opacity=0.75, uid=f"proj{i}"
-                )
+                plotly_curve(x, y, 0 * z + projZ, color=cd, width=2, uid=f"proj{i}")
             )
         else:
             curves.append(
@@ -706,7 +700,7 @@ def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
         x=alpha,
         y=beta,
         name="Family",
-        text=[f"Index: {ind}<br>JC: {jc:.6f}" for ind,jc in zip(df.index, jcs)],
+        text=[f"Index: {ind}<br>JC: {jc:.6f}" for ind, jc in zip(df.index, jcs)],
         hoverinfo="text",
         mode="lines+markers",
         hoverlabel=dict(namelength=-1, bgcolor="black", font_color="white"),
