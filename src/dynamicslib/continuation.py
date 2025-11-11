@@ -197,6 +197,10 @@ def find_bif(
                 bisect_func = lambda alpha, beta: beta - alpha - 1
             case "period quadrouple":
                 bisect_func = lambda alpha, beta: beta - 2
+            case "period 6":
+                bisect_func = lambda alpha, beta: -beta - alpha + 2
+            case "period six":
+                bisect_func = lambda alpha, beta: -beta - alpha + 2
             case "hopf":
                 bisect_func = lambda alpha, beta: (
                     beta - alpha**2 / 4 - 2 if -4 <= alpha <= 4 else np.nan
