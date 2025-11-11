@@ -685,15 +685,25 @@ def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
     beta = (alpha**2 - (np.sum(eigs**2, axis=1).real - 2)) / 2
     alphrange = np.max(np.abs(alpha))
     x = np.linspace(-((alphrange) ** (1 / 3)), (alphrange) ** (1 / 3), 1000, False) ** 3
-    lines_cross = np.array([-2 * x - 2, 2 * x - 2, x + 1, 2 + x - x, x**2 / 4 + 2])
+    lines_cross = np.array(
+        [-2 * x - 2, 2 * x - 2, x + 1, 2 + x - x, -x + 1, x**2 / 4 + 2]
+    )
     lines_names = [
         "Tangent",
         "Period-Double",
         "Period-Triple",
         "Period-Quadrouple",
+        "Period-Six",
         "Hopf",
     ]
-    eqns = [r"-2\alpha - 2", r"2\alpha - 2", r"\alpha+1", r"2", r"\frac{\alpha^2}{4}+2"]
+    eqns = [
+        r"-2\alpha - 2",
+        r"2\alpha - 2",
+        r"\alpha+1",
+        r"2",
+        r"-\alpha+1",
+        r"\frac{\alpha^2}{4}+2",
+    ]
 
     c = px.colors.sample_colorscale(colormap, n)
     curve = go.Scatter(
