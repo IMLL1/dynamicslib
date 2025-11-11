@@ -408,8 +408,30 @@ def plotly_display(
     mu: float = muEM,
     figsize: tuple[float, float] = (900, 600),
     port=8050,
+    flip_vert=False,
+    flip_horiz=False,
 ):
     full_dataframe = full_dataframe.reset_index()
+
+    if flip_vert:
+        full_dataframe["Initial z"] *= -1
+        if "Initial vz" in full_dataframe.columns:
+            full_dataframe["Initial vy"] *= -1
+        xyzs_temp = xyzs.copy()
+        for ii in range(len(xyzs_temp)):
+            trj = xyzs_temp[ii]
+            xyzs_temp[ii] = (trj[0], trj[1], -trj[2])
+        xyzs = xyzs_temp
+    if flip_horiz:
+        full_dataframe["Initial vy"] *= -1
+        if "Initial y" in full_dataframe.columns:
+            full_dataframe["Initial vy"] *= -1
+        xyzs_temp = xyzs.copy()
+        for ii in range(len(xyzs_temp)):
+            trj = xyzs_temp[ii]
+            xyzs_temp[ii] = (trj[0], -trj[1], trj[2])
+        xyzs = xyzs_temp
+
     df = full_dataframe[[col for col in full_dataframe.columns if "Eig" not in col]]
     data = df.values.astype(np.float32)
     param_names = list(df.columns)
@@ -477,7 +499,7 @@ def plotly_display(
             marker=dict(
                 color=cdata,
                 colorscale=colormap,
-                colorbar=dict(title="Index", thickness=12),
+                colorbar=dict(title="Index", thickness=12, exponentformat="power"),
             ),
         )
     else:
@@ -490,7 +512,7 @@ def plotly_display(
             marker=dict(
                 color=cdata,
                 colorscale=colormap,
-                colorbar=dict(title="Index", thickness=12),
+                colorbar=dict(title="Index", thickness=12,exponentformat="power"),
             ),
         )
 
