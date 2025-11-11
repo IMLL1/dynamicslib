@@ -8,11 +8,12 @@ def arclen_cont(
     s: float = 1e-3,
     S: float = 0.5,
     tol: float = 1e-10,
+    max_iter: None | int = None,
+    # maxstep: float | None = None,
+    exact_tangent: bool = False,
+    modified=True,
     stop_callback: Callable | None = None,  # possibly change to also take dF?
     stop_kwags: dict = {},
-    modified: bool = True,
-    max_iter: None | int = None,
-    use_exact_tangent: bool = False,
 ) -> Tuple[List, List]:
     """Pseudoarclength continuation wrapper. The modified algorithm has a full step size of s, rather than projected step size.
 
@@ -41,7 +42,7 @@ def arclen_cont(
 
     _, dF, stm = f_df_stm_func(X0)
     svd = np.linalg.svd(dF)
-    tangent = dir0.copy() if use_exact_tangent else svd.Vh[-1]
+    tangent = dir0.copy() if exact_tangent else svd.Vh[-1]
 
     # # if the direction we asked for is normal to the computed tangent, use the second-most tangent vector
     # if np.abs(np.dot(tangent, dir0)) < 1e-5:
@@ -102,6 +103,8 @@ def natural_param_cont(
     tol: float = 1e-10,
     stop_callback: Callable | None = None,
     stop_kwags: dict = {},
+    fudge:float=1,
+    debug=False,
 ) -> Tuple[List, List, List]:
     """Natural parameter continuation continuation wrapper.
 
@@ -139,7 +142,7 @@ def natural_param_cont(
     i = 0
     # ensure that the stopping condition hasnt been satisfied
     while i < N and not (param > param0 and stopfunc(X, eig_vals[-1], eig_vals[-2])):
-        X, dF, stm = dc_npc(X + dparam, f_df_stm_func(param), tol)
+        X, dF, stm = dc_npc(X + dparam, f_df_stm_func(param), tol, fudge, debug)
         params.append(param)
         Xs.append(X)
         eig_vals.append(np.linalg.eigvals(stm))
