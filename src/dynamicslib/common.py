@@ -4,7 +4,7 @@ from typing import Tuple
 from typing import Callable, List
 from scipy.linalg import null_space
 from scipy.integrate import solve_ivp
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from numba import njit
 
 from dynamicslib.consts import muEM

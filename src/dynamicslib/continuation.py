@@ -9,7 +9,7 @@ def arclen_cont(
     S: float = 0.5,
     tol: float = 1e-10,
     max_iter: None | int = None,
-    # maxstep: float | None = None,
+    fudge: float | None = None,
     exact_tangent: bool = False,
     modified=True,
     stop_callback: Callable | None = None,  # possibly change to also take dF?
@@ -62,7 +62,7 @@ def arclen_cont(
             tangent *= -1
         try:
             X, dF, stm = dc_arclen(
-                X, tangent, f_df_stm_func, s, tol, modified, max_iter
+                X, tangent, f_df_stm_func, s, tol, modified=modified, max_iter=max_iter,fudge=fudge
             )
         except np.linalg.LinAlgError as err:
             print(f"Linear algebra error encountered: {err}")
@@ -103,7 +103,7 @@ def natural_param_cont(
     tol: float = 1e-10,
     stop_callback: Callable | None = None,
     stop_kwags: dict = {},
-    fudge:float=1,
+    fudge: float = 1,
     debug=False,
 ) -> Tuple[List, List, List]:
     """Natural parameter continuation continuation wrapper.
