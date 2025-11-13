@@ -59,6 +59,7 @@ def arclen_cont(
     while arclen < S and not (arclen > 0 and stopfunc(X, eig_vals[-1], eig_vals[-2])):
         # if we flip flop, undo the flipflop
         if np.dot(tangent, tangent_prev) < 0:
+            print(f"SWITCHED AT s={arclen}")
             tangent *= -1
         try:
             X, dF, stm = dc_arclen(
