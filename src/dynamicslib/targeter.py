@@ -14,16 +14,6 @@ def f_df_CR3_single(
 ) -> Tuple[NDArray, NDArray, NDArray]:
     x0, tf = X2xtf(X)
     xstmIC = np.array([*x0, *np.eye(6).flatten()])
-    # ode_sol = solve_ivp(
-    #     coupled_stm_eom,
-    #     (0, tf if full_period else tf / 2),
-    #     xstmIC,
-    #     rtol=int_tol,
-    #     atol=int_tol,
-    #     args=(mu,),
-    #     method="DOP853",
-    # )
-    # xf, stm = ode_sol.y[:6, -1], ode_sol.y[6:, -1].reshape(6, 6)
     ts, ys, _ = dop853(
         coupled_stm_eom,
         (0.0, tf if full_period else tf / 2),
@@ -59,7 +49,7 @@ def dc_arclen(
     f_df_func: Callable,
     s: float = 1e-3,
     tol: float = 1e-8,
-    modified: bool = False,
+    modified: bool = True,
     max_iter: int | None = None,
     fudge: float | None = None,
     # maxstep: float | None = None,
@@ -72,13 +62,13 @@ def dc_arclen(
         f_df_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
         s (float, optional): step size. Defaults to 1e-3.
         tol (float, optional): tolerance for convergence. Defaults to 1e-8.
-        modified (boolean, optional): whether to use modified algorithm. Defaults to false.
-        max_iter: maximum number of iterations
+        modified (boolean, optional): whether to use modified algorithm. Defaults to True.
+        max_iter (int): maximum number of iterations
+        fudge (float): multiply step by this much
 
     Returns:
         Tuple[NDArray, NDArray, NDArray]: X. final dF/dx, full-rev STM
     """
-
     X = X_prev + s * tangent
     if fudge is None:
         fudge = 1.0
@@ -100,8 +90,6 @@ def dc_arclen(
         G = np.array([*f, lastG])
         dG = np.vstack((dF, lastDG))
         dX = -np.linalg.inv(dG) @ G
-        # if maxstep is not None and np.linalg.norm(dX) > maxstep:
-        #     dX = maxstep * dX / np.linalg.norm(dX)
         X += dX * fudge
         niters += 1
 
@@ -123,6 +111,9 @@ def dc_npc(
         f_df_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
         tol (float, optional): tolerance for convergence. Defaults to 1e-8.
         max_iter: maximum number of iterations
+        fudge (float): multiply step by this much
+        debug (bool): whether to print out steps
+        max_iter: int|None: how many iterations to cap at
 
 
     Returns:
@@ -143,6 +134,49 @@ def dc_npc(
             raise RuntimeError("Exceeded maximum iterations")
         f, dF, stm_full = f_df_func(X)
         dX = -np.linalg.inv(dF) @ f
+        X += fudge * dX
+        niters += 1
+        if debug:
+            print(dX)
+
+    return X, dF, stm_full
+
+
+def dc_underconstrained(
+    X_guess: NDArray,
+    f_df_func: Callable,
+    tol: float = 1e-8,
+    fudge: float = 1,
+    debug: bool = False,
+    max_iter: int | None = None,
+) -> Tuple[NDArray, NDArray, NDArray]:
+    """Underconstrained differential corrector
+
+    Args:
+        X_guess (NDArray): guess for control variables
+        f_df_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
+        tol (float, optional): tolerance for convergence. Defaults to 1e-8.
+        max_iter: maximum number of iterations
+        fudge (float): multiply step by this much
+        debug (bool): whether to print out steps
+        max_iter: int|None: how many iterations to cap at
+
+    Returns:
+        Tuple[NDArray, NDArray, NDArray]: X. final dF/dx, full-rev STM
+    """
+    X = X_guess.copy()
+    nX = len(X_guess)
+    dF = np.empty((nX, nX))
+    stm_full = np.empty((nX, nX))
+
+    f = np.array([np.inf] * nX)
+    niters = 0
+    dX = np.array([np.inf] * nX)
+    while np.linalg.norm(f) > tol and np.linalg.norm(dX) > tol:
+        if max_iter is not None and niters > max_iter:
+            raise RuntimeError("Exceeded maximum iterations")
+        f, dF, stm_full = f_df_func(X)
+        dX = -np.linalg.pinv(dF) @ f
         X += fudge * dX
         niters += 1
         if debug:

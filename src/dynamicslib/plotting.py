@@ -411,8 +411,24 @@ def plotly_display(
     flip_vert=False,
     flip_horiz=False,
 ):
+    """Displays a family using a Plotly figure
+
+    Args:
+        xyzs (List): prepropagated trajectory ((3 x Ni)_i for i in num trajectories)
+        full_dataframe (pd.DataFrame): Dataframe of values. Must include indices at least.
+        colormap (str, optional): What color map to use. Defaults to "rainbow".
+        mu (float, optional): Mu value. Used to show the Lagrange points and primaries. Defaults to muEM.
+        figsize (tuple[float, float], optional): Figure size (in pix? I think?). Defaults to (900, 600).
+        port (int, optional): What port number to use. Don't reuse the same port for multiple plots. Defaults to 8050.
+        flip_vert (bool, optional): Flip horizontally. Defaults to False.
+        flip_horiz (bool, optional): Flip vertically. Defaults to False.
+
+    Returns:
+        None
+    """
     full_dataframe = full_dataframe.reset_index()
 
+    # do the flips
     if flip_vert:
         full_dataframe["Initial z"] *= -1
         if "Initial vz" in full_dataframe.columns:
@@ -423,33 +439,41 @@ def plotly_display(
             xyzs_temp[ii] = (trj[0], trj[1], -trj[2])
         xyzs = xyzs_temp
     if flip_horiz:
-        full_dataframe["Initial vy"] *= -1
-        if "Initial y" in full_dataframe.columns:
-            full_dataframe["Initial vy"] *= -1
+        print(
+            Warning(
+                "Horizontal flip does not update vy properly; do not trust vy information"
+            )
+        )
+        # if "Initial y" in full_dataframe.columns:
+        #     full_dataframe["Initial vy"] *= -1
         xyzs_temp = xyzs.copy()
         for ii in range(len(xyzs_temp)):
             trj = xyzs_temp[ii]
             xyzs_temp[ii] = (trj[0], -trj[1], trj[2])
         xyzs = xyzs_temp
 
+    # build dataframe
     df = full_dataframe[[col for col in full_dataframe.columns if "Eig" not in col]]
     data = df.values.astype(np.float32)
     param_names = list(df.columns)
 
+    # check whether it's planar (will use 2d plot if so)
     is2d = ("Initial z" not in param_names and "Initial vz" not in param_names) or max(
         [np.max(np.abs(xyz[-1])) for xyz in xyzs]
     ) < 1e-10
 
     datatr = data.T
 
+    # make sure the lengths match
     assert len(xyzs) == len(data)
-    assert len(data[0]) == len(param_names)
 
+    # convert to float 32 to save storage space. Float 16 may even suffice
     xyzs = [np.float32(xyz) for xyz in xyzs]
-    n = len(xyzs)
+    n = len(xyzs)  # number of trajectories
 
     cdata = datatr[param_names.index("Index")]  # color data
 
+    # get bounding box
     xs, ys, zs = np.hstack(xyzs)
     minx, miny, minz = (min(xs), min(ys), min(zs))
     maxx, maxy, maxz = (max(xs), max(ys), max(zs))
@@ -461,6 +485,9 @@ def plotly_display(
     projX = ctrX - rng / 2
     projY = ctrY - rng / 2
     projZ = ctrZ - rng / 2
+
+    # get curves and their projections
+
     projs = []
     curves = []
 
@@ -490,6 +517,7 @@ def plotly_display(
                 plotly_curve_2d(x, y, lbl, color=c, width=1.5, uid=f"traj{i}")
             )
 
+    # make a colorbar with nan data
     if is2d:
         cbar_dummy = go.Scatter(
             x=[np.nan] * n,
@@ -512,12 +540,13 @@ def plotly_display(
             marker=dict(
                 color=cdata,
                 colorscale=colormap,
-                colorbar=dict(title="Index", thickness=12,exponentformat="power"),
+                colorbar=dict(title="Index", thickness=12, exponentformat="power"),
             ),
         )
 
     fig = go.Figure(data=[cbar_dummy, *curves, *projs])
 
+    # draw primaries and Lagrange points
     Lpoints = get_Lpts(mu=mu)
     if is2d:
         fig.add_trace(
@@ -564,6 +593,7 @@ def plotly_display(
             )
         )
 
+    # set layout
     fig.update_layout(
         width=figsize[0],
         height=figsize[1],
@@ -573,6 +603,7 @@ def plotly_display(
         plot_bgcolor="#000000",
         paper_bgcolor="#000000",
     )
+    # set axes
     if is2d:
         fig.update_layout(
             xaxis=dict(
@@ -586,7 +617,6 @@ def plotly_display(
         )
         fig.update_yaxes(scaleanchor="x", scaleratio=1, exponentformat="power")
         fig.update_xaxes(exponentformat="power")
-
     else:
         fig.update_scenes(
             xaxis=dict(
@@ -618,6 +648,7 @@ def plotly_display(
 
     # INTERACTIVITY IN HTML
 
+    # show/hide buttons. We only have projections in 3d, so only show these in 3d
     if not is2d:
         argshide = {"visible": [True, *[True] * n, *[False] * (3 * n), True, True]}
         argsshow = {"visible": [True, *[True] * (4 * n + 2)]}
@@ -647,7 +678,8 @@ def plotly_display(
             ]
         )
 
-    # INTERACTIVITY
+    # Dash dropdowns
+
     app = Dash()
     app.layout = html.Div(
         [

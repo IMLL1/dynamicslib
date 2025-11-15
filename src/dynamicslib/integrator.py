@@ -68,16 +68,13 @@ def interp_hermite(
         _type_: new ts (N2, ), new xs (N2, nx)
     """
 
-    flip = t[-1] < t[0]  # whether direction is flipped
+    # flip = t[-1] < t[0]  # whether direction is flipped
     if len(np.shape(x)) != 2:
         raise NotImplementedError(
             "can only interpolate vectors for now, so x and dxdt must be 2D"
         )
 
-    if flip:
-        t = t[::-1]
-        x = x[::-1]
-        dxdt = dxdt[::-1]
+    # SOMETHING IS OFF ABOUT THE INTERPOLATOR
 
     if t_eval is None:
         if n_mult is not None:
@@ -90,35 +87,29 @@ def interp_hermite(
             raise ValueError("Must provide value for t_eval or n_mult")
     else:
         assert t_eval[0] >= t[0] and t_eval[-1] <= t[-1]
-        if flip:
-            t_eval = np.flip(t_eval)
-
-    i0 = 0
 
     x_eval = np.empty((0, len(x[0])), dtype=np.float64)
     for j in range(len(t) - 1):
         t0 = t[j]
         t1 = t[j + 1]
-        while i0 < len(t_eval) and t_eval[i0] < t0:
-            i0 += 1
-        i1 = i0 + 1
-        while i1 < len(t_eval) and t_eval[i1 - 1] < t1:
-            i1 += 1
-        if i0 == len(t_eval):
-            break
 
-        ts = t_eval[i0:i1]
-        x0 = x[j]
-        x1 = x[j + 1]
-        dxdt0 = dxdt[j]
-        dxdt1 = dxdt[j + 1]
-        newterms = Hermite_interp_interval(ts, t0, t1, x0, x1, dxdt0, dxdt1)
-        x_eval = np.concatenate((x_eval, newterms))
-        i0 = i1
+        if j == 0:
+            ts = t_eval[np.logical_and(t0 <= t_eval, t_eval <= t1)].copy()
+        else:
+            ts = t_eval[np.logical_and(t0 < t_eval, t_eval <= t1)].copy()
 
-    if flip:
-        t_eval = t_eval[::-1]
-        x_eval = x_eval[::-1]
+        if len(ts):
+            x0 = x[j]
+            x1 = x[j + 1]
+            dxdt0 = dxdt[j]
+            dxdt1 = dxdt[j + 1]
+            newterms = Hermite_interp_interval(ts, t0, t1, x0, x1, dxdt0, dxdt1)
+            x_eval = np.concatenate((x_eval, newterms))
+        # i0 = i1
+
+    # if flip:
+    #     t_eval = t_eval[::-1]
+    #     x_eval = x_eval[::-1]
 
     return t_eval, x_eval
 
@@ -272,7 +263,7 @@ def dop853(
     atol: float = 1e-10,
     rtol: float = 1e-10,
     init_step: float = 1.0,
-    t_eval: NDArray | None = None,
+    t_eval: NDArray | Tuple | None = None,
     args: Tuple = (),
 ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
     """High order adaptive RK method
@@ -288,7 +279,7 @@ def dop853(
         args (Tuple, optional): additional args to func(t, x, *args). Defaults to ().
 
     Returns:
-        Tuple[NDArray, NDArray]: ts (N, ), xs (nx, N)
+        Tuple[NDArray, NDArray, NDArray]: ts (N, ), xs (nx, N), EOM function evals
     """
     n = len(x0)
 
@@ -300,8 +291,8 @@ def dop853(
     xs = expand_dims(x0, axis=0)
     fs = expand_dims(func(t0, x0, *args), axis=0)
     ts = array([t0], dtype=float64)
-    x = x0
-    h = init_step if forward else -init_step
+    x = x0.copy()
+    h = init_step if forward else -abs(init_step)
 
     # pp180 of RKEM
     while (t < tf) if forward else (t > tf):
@@ -352,8 +343,14 @@ def dop853(
 
     # interpolate as needed
     if t_eval is not None:
-        t_eval = np.asarray(t_eval)
-        _, xs = interp_hermite(ts, xs, fs, t_eval)
+        if not forward:
+            if t_eval[0] > t_eval[-1]:
+                t_eval = t_eval[::-1]
+            ts, xs = interp_hermite(ts[::-1], xs[::-1], fs[::-1], t_eval)
+            ts = ts[::-1]
+            xs = xs[::-1]
+        else:
+            ts, xs = interp_hermite(ts, xs, fs, t_eval)
 
     # if not dense_output:
     #     return ts, xs.T

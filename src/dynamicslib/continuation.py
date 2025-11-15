@@ -24,9 +24,13 @@ def arclen_cont(
         s (float, optional): step size. Defaults to 1e-3.
         S (float, optional): terminate at this arclength. Defaults to 0.5.
         tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+        max_iter: (int | None, optional): maximum number of iterations. Will return what it's computed so far if it exceeds that
+        fudge: (float | None, optional): multiply step size by this much in the differential corrector
+        exact_tangent (bool, optional): whether the tangent vector `dir0` passed in is exact or approximate. If approximate, it is only used to check direction with a dot product. Otherwise, it is used as-is.
+        modified (bool, optional): Whether to use modified algorithm. Defaults to True.
         stop_callback (Callable): Function with signature f(X, current_eigvals, previous_eigvals, *kwargs) which returns True when continuation should terminate. If None, will only terminate when the final arclength is reached. Defaults to None.
         stop_kwags (dict, optional): keyword arguments to stop_calback. Defaults to {}.
-        modified (bool, optional): Whether to use modified algorithm. Defaults to False.
+
 
     Returns:
         Tuple[List, List]: all Xs, all eigenvalues
@@ -38,7 +42,7 @@ def arclen_cont(
         stopfunc = lambda X, ecurr, elast: False
 
     X = X0.copy()
-    tangent_prev = dir0
+    tangent_prev = dir0 / np.linalg.norm(dir0)
 
     _, dF, stm = f_df_stm_func(X0)
     svd = np.linalg.svd(dF)
@@ -59,11 +63,17 @@ def arclen_cont(
     while arclen < S and not (arclen > 0 and stopfunc(X, eig_vals[-1], eig_vals[-2])):
         # if we flip flop, undo the flipflop
         if np.dot(tangent, tangent_prev) < 0:
-            print(f"SWITCHED AT s={arclen}")
             tangent *= -1
         try:
             X, dF, stm = dc_arclen(
-                X, tangent, f_df_stm_func, s, tol, modified=modified, max_iter=max_iter,fudge=fudge
+                X,
+                tangent,
+                f_df_stm_func,
+                s,
+                tol,
+                modified=modified,
+                max_iter=max_iter,
+                fudge=fudge,
             )
         except np.linalg.LinAlgError as err:
             print(f"Linear algebra error encountered: {err}")
@@ -105,7 +115,7 @@ def natural_param_cont(
     stop_callback: Callable | None = None,
     stop_kwags: dict = {},
     fudge: float = 1,
-    debug=False,
+    debug: bool = False,
 ) -> Tuple[List, List, List]:
     """Natural parameter continuation continuation wrapper.
 
@@ -116,9 +126,12 @@ def natural_param_cont(
         dparam (float): The step in natural parameter to take each iteration
         N (int): The number of steps after which to terminate
         tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+        modified (bool, optional): Whether to use modified algorithm. Defaults to True.
         stop_callback (Callable): Function with signature f(X, current_eigvals, previous_eigvals, *kwargs) which returns True when continuation should terminate. If None, will only terminate when the final length is reached. Defaults to None.
         stop_kwags (dict, optional): keyword arguments to stop_calback. Defaults to {}.
-        modified (bool, optional): Whether to use modified algorithm. Defaults to False.
+        fudge (float | None, optional): multiply step size by this much in the differential corrector
+        debug (bool, optional): whether to print off state updates
+
 
     Returns:
         Tuple[List, List]: all Xs, all eigenvalues
@@ -180,6 +193,7 @@ def find_bif(
         bisect_tol (float, optional): Tolerance for bisection algorithm. Defaults to 1e-5.
         bif_type (str, optional): bif_type of bifurcation to detect ("tangent", "period double", "period triple", "period quadrouple", "hopf", "modified hopf")
         bisect_func: Callable that takes alpha, beta and returns a float to bisect
+        debug (bool, optional): whether to print off function evaluations and steps
 
     Returns:
         NDArray: Bifurcation control variables, tangent vector
@@ -385,69 +399,69 @@ def find_bif(
 #     return X, tangent
 
 
-def find_any_bif(
-    X0: NDArray,
-    f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
-    dir0: NDArray | List,
-    s: float = 1e-3,
-    tol: float = 1e-10,
-    skip_changes: int = 0,
-    stabEps: float = 1e-5,
-) -> Tuple[NDArray, NDArray]:
-    """Find bifurcation using changes in stability. This function can likely be gotten rid of
+# def find_any_bif(
+#     X0: NDArray,
+#     f_df_stm_func: Callable[[NDArray], Tuple[NDArray, NDArray, NDArray]],
+#     dir0: NDArray | List,
+#     s: float = 1e-3,
+#     tol: float = 1e-10,
+#     skip_changes: int = 0,
+#     stabEps: float = 1e-5,
+# ) -> Tuple[NDArray, NDArray]:
+#     """Find bifurcation using changes in stability. This function can likely be gotten rid of
 
-    Args:
-        X0 (NDArray): initial control variables
-        f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
-        dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
-        s (float, optional): step size. Defaults to 1e-3.
-        tol (float, optional): tolerance for convergence. Defaults to 1e-10.
-        skip_changes (int, optional): number of stability changes to skip. Defaults to 0.
-        stabEps (float, optional): Arbitrary epsilon to determine when an eigenvalue = +/-1. Defaults to 1e-5.
+#     Args:
+#         X0 (NDArray): initial control variables
+#         f_df_stm_func (Callable): function with signature f, df/dX, STM = f_df_func(X)
+#         dir0 (NDArray | List): rough initial stepoff direction. Is mostly just used to switch the direction of the computed tangent vector
+#         s (float, optional): step size. Defaults to 1e-3.
+#         tol (float, optional): tolerance for convergence. Defaults to 1e-10.
+#         skip_changes (int, optional): number of stability changes to skip. Defaults to 0.
+#         stabEps (float, optional): Arbitrary epsilon to determine when an eigenvalue = +/-1. Defaults to 1e-5.
 
-    Returns:
-        NDArray: Bifurcation control variables, tangent vector
-    """
-    X = X0.copy()
-    tangent_prev = dir0
+#     Returns:
+#         NDArray: Bifurcation control variables, tangent vector
+#     """
+#     X = X0.copy()
+#     tangent_prev = dir0
 
-    _, dF, stm = f_df_stm_func(X0)
-    svd = np.linalg.svd(dF)
-    tangent = svd.Vh[-1]
+#     _, dF, stm = f_df_stm_func(X0)
+#     svd = np.linalg.svd(dF)
+#     tangent = svd.Vh[-1]
 
-    Xs = [X0]
+#     Xs = [X0]
 
-    stabs_prev = [None] * 6
+#     stabs_prev = [None] * 6
 
-    while True:
-        if np.dot(tangent, tangent_prev) < 0:
-            tangent *= -1
-        X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol)
+#     while True:
+#         if np.dot(tangent, tangent_prev) < 0:
+#             tangent *= -1
+#         X, dF, stm = dc_arclen(X, tangent, f_df_stm_func, s, tol)
 
-        Xs.append(X)
+#         Xs.append(X)
 
-        # eval_norms = np.sort(np.abs(eig_vals[-1]))[3:]
-        stabs = sorted([get_stab(e, stabEps) for e in np.linalg.eigvals(stm)])
+#         # eval_norms = np.sort(np.abs(eig_vals[-1]))[3:]
+#         stabs = sorted([get_stab(e, stabEps) for e in np.linalg.eigvals(stm)])
 
-        tangent_prev = tangent
+#         tangent_prev = tangent
 
-        # tangent = null_space(dF)
-        svd = np.linalg.svd(dF)
-        tangent = svd.Vh[-1]
+#         # tangent = null_space(dF)
+#         svd = np.linalg.svd(dF)
+#         tangent = svd.Vh[-1]
 
-        if stabs != stabs_prev and None not in stabs_prev:
-            # if abs(svd.S[-2]) <= 0.5:
-            # if svd.
-            if skip_changes == 0:
-                tangent = svd.Vh[-2]
-                print(f"BIFURCATING @ X={X} in the direction of {tangent}")
-                return X, tangent
-            else:
-                skip_changes -= 1
-            # else:
-            #     pass
+#         if stabs != stabs_prev and None not in stabs_prev:
+#             # if abs(svd.S[-2]) <= 0.5:
+#             # if svd.
+#             if skip_changes == 0:
+#                 tangent = svd.Vh[-2]
+#                 print(f"BIFURCATING @ X={X} in the direction of {tangent}")
+#                 return X, tangent
+#             else:
+#                 skip_changes -= 1
+#             # else:
+#             #     pass
 
-        stabs_prev = stabs
+#         stabs_prev = stabs
 
 
 def arclen_to_fail(
