@@ -2,3 +2,5 @@ tests
 *pycache*
 *.egg-info
 dist*
+family_factory
+IGNORE

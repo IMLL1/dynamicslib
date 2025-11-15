@@ -177,8 +177,7 @@ def find_bif(
     targ_tol: float = 1e-10,
     skip: int = 0,
     bisect_tol: float = 1e-5,
-    bif_type: str | None = "tangent",
-    bisect_func: Callable[[float, float], float] | None = None,
+    bif_type: str | Tuple[int, int] | Tuple[int] = "tangent",
     debug: bool = False,
 ) -> Tuple[NDArray, NDArray]:
     """Find bifurcation using Broucke stability
@@ -191,48 +190,39 @@ def find_bif(
         targ_tol (float, optional): tolerance for targetter convergence. Defaults to 1e-10.
         skip (int, optional): number of crossings to skip. Defaults to 0.
         bisect_tol (float, optional): Tolerance for bisection algorithm. Defaults to 1e-5.
-        bif_type (str, optional): bif_type of bifurcation to detect ("tangent", "period double", "period triple", "period quadrouple", "hopf", "modified hopf")
-        bisect_func: Callable that takes alpha, beta and returns a float to bisect
+        bif_type (str, optional): bif_type of bifurcation to detect ("tangent", "hopf") OR
+            a tuple indicating period-multiplying bifurcation (e.g. (3,)
+            for tripling, (5,2) for quintupling with second harmonic). Defaults to "tangent".
         debug (bool, optional): whether to print off function evaluations and steps
 
     Returns:
         NDArray: Bifurcation control variables, tangent vector
     """
-    if bisect_func is None and bif_type is None:
-        raise ValueError("Must give either a function to bisect or a bifurcation type")
-    if bisect_func is not None and bif_type is not None:
-        raise ValueError(
-            "Must give EITHER a function to bisect or a bifurcation type (not both)"
-        )
+    if isinstance(bif_type, tuple):
+        # Period multiplying
 
-    if bisect_func is None:
+        # generally, beta = a*alpha+b where a = -2cos(q2pi/n), 2-4cos^2(q2pi/n) for n-periodic and q\in 1..n/2
+        if len(bif_type) == 1:
+            n = bif_type[0]
+        elif len(bif_type) == 2:
+            n = bif_type[0] / bif_type[1]
+        else:
+            raise ValueError(
+                "Period-multiplying bifurcation type must be given as (n,) or (n,m)"
+            )
+        angle = 2 * np.pi / n
+        cos_val = np.cos(angle)
+        bisect_func = (
+            lambda alpha, beta: -2 * cos_val * alpha + (2 - 4 * cos_val**2) - beta
+        )
+    else:
         match bif_type.lower():
             case "tangent":
                 bisect_func = lambda alpha, beta: beta + 2 + 2 * alpha
-            case "period double":
-                bisect_func = lambda alpha, beta: beta + 2 - 2 * alpha
-            case "period triple":
-                bisect_func = lambda alpha, beta: beta - alpha - 1
-            case "period quadrouple":
-                bisect_func = lambda alpha, beta: beta - 2
-            case "period 6":
-                bisect_func = lambda alpha, beta: -beta - alpha + 2
-            case "period six":
-                bisect_func = lambda alpha, beta: -beta - alpha + 2
             case "hopf":
-                bisect_func = lambda alpha, beta: (
-                    beta - alpha**2 / 4 - 2 if -4 <= alpha <= 4 else np.nan
-                )
-            case "modified hopf":
-                bisect_func = lambda alpha, beta: (
-                    np.nan if -4 <= alpha <= 4 else beta - alpha**2 / 4 - 2
-                )
+                bisect_func = lambda alpha, beta: beta - alpha**2 / 4 - 2
             case _:
                 raise NotImplementedError("womp womp")
-
-        # NOTE: if period-multiplying and L is the non-unity non-unit-circle, then
-        # $$\alpha=2\left(\lambda\cos\theta+1+\frac{\cos\theta}{\lambda})$$
-        # $$\beta=-\lambda-2\cos\theta-\frac{1}{\lambda+2}$$
 
     X = np.array(X0) if isinstance(X0, list) else X0.copy()
     tangent_prev = np.array(dir0) if isinstance(dir0, list) else dir0.copy()

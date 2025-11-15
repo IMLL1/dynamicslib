@@ -739,25 +739,62 @@ def broucke_diagram(df: pd.DataFrame, html_save: str | None = None):
     beta = (alpha**2 - (np.sum(eigs**2, axis=1).real - 2)) / 2
     alphrange = np.max(np.abs(alpha))
     x = np.linspace(-((alphrange) ** (1 / 3)), (alphrange) ** (1 / 3), 1000, False) ** 3
+
+    def get_per_mult(x, n, q=1):
+        a = -2 * np.cos(2 * np.pi * q / n)
+        b = 2 - 4 * (np.cos(2 * np.pi * q / n)) ** 2
+        return a * x
+
     lines_cross = np.array(
-        [-2 * x - 2, 2 * x - 2, x + 1, 2 + x - x, -x + 1, x**2 / 4 + 2]
+        [
+            get_per_mult(x, 2),
+            get_per_mult(x, 3),
+            get_per_mult(x, 4),
+            get_per_mult(x, 5, 1),
+            get_per_mult(x, 5, 2),
+            get_per_mult(x, 6),
+            get_per_mult(x, 7, 1),
+            get_per_mult(x, 7, 2),
+            get_per_mult(x, 7, 3),
+            get_per_mult(x, 8),
+            # get_per_mult(x, 9, 1),
+            # get_per_mult(x, 9, 2),
+            # get_per_mult(x, 9, 4),
+            -2 * x - 2,
+            x**2 / 4 + 2,
+        ]
     )
     lines_names = [
-        "Tangent",
         "Period-Double",
         "Period-Triple",
         "Period-Quadrouple",
-        "Period-Six",
+        "Period-Quintuple (1)",
+        "Period-Quintuple (2)",
+        "Period-Sextuple",
+        "Period-Septuple (1)",
+        "Period-Septuple (2)",
+        "Period-Septuple (3)",
+        "Period-Octuple (1)",
+        "Period-Octuple (3)",
+        "Tangent",
         "Hopf",
     ]
     eqns = [
-        r"-2\alpha - 2",
         r"2\alpha - 2",
-        r"\alpha+1",
+        r"\alpha + 1",
         r"2",
+        r"\frac{1-\sqrt{5}}{2}\alpha+\frac{1+\sqrt{5}}{2}\alpha",
+        r"\frac{1+\sqrt{5}}{2}\alpha+\frac{1-\sqrt{5}}{2}\alpha",
         r"-\alpha+1",
+        r"-2\cos(\frac{2\pi}{7})\alpha+2-4\cos^2(\frac{2\pi}{7})",
+        r"-2\cos(\frac{4\pi}{7})\alpha+2-4\cos^2(\frac{4\pi}{7})",
+        r"-2\cos(\frac{6\pi}{7})\alpha+2-4\cos^2(\frac{6\pi}{7})",
+        r"-\sqrt{2}\alpha",
+        r"\sqrt{2}\alpha",
+        r"-2\alpha - 2",
         r"\frac{\alpha^2}{4}+2",
     ]
+    # generally, beta = a*alpha+b where a = -2cos(q2pi/n), 2-4cos^2(q2pi/n) for n-periodic and q\in 1..n/2
 
     c = px.colors.sample_colorscale(colormap, n)
     curve = go.Scatter(
